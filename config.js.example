@@ -1,0 +1,20 @@
+module.exports = {
+    token: "YOUR_BOT_TOKEN_HERE",
+    clientId: "YOUR_CLIENT_ID_HERE",
+    prefix: '!',
+    database: {
+        path: './database.db'
+    },
+    cooldowns: {
+        xp: 30000, // 30 seconds
+        commands: {
+            default: 3000, // 3 seconds
+            admin: 1000 // 1 second for admin commands
+        }
+    },
+    xp: {
+        min: 15,
+        max: 25,
+        levelMultiplier: 100
+    }
+};
