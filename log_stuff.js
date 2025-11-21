@@ -1,17 +1,31 @@
 const { Client, EmbedBuilder, AuditLogEvent } = require('discord.js');
 const nukeProtection = require('./utils/nukeProtection');
 
-// Keep track of recent logs to prevent duplicates
-const recentLogs = new Map();
+// Configuration constants
 const LOG_COOLDOWN = 30000; // 30 seconds cooldown
 const AUDIT_LOG_DELAY = 3500; // Delay for audit logs to arrive
 const AUDIT_MATCH_WINDOW_MS = 10000; // Max difference between event and audit entry
+const LOG_CHANNEL_CACHE_TTL = 300000; // 5 minutes cache for log channels
+
+// State management
+const recentLogs = new Map();
+const logChannelCache = new Map();
 
 module.exports = async (client, db) => {
+
   async function getLogChannel(guild) {
     try {
+      // Check cache first
+      const cached = logChannelCache.get(guild.id);
+      if (cached && Date.now() - cached.timestamp < LOG_CHANNEL_CACHE_TTL) {
+        return cached.channel;
+      }
+
       const channelId = await db.getLogChannel(guild.id);
-      if (!channelId) return null;
+      if (!channelId) {
+        logChannelCache.set(guild.id, { channel: null, timestamp: Date.now() });
+        return null;
+      }
 
       let channel = guild.channels.cache.get(channelId);
       if (!channel) {
@@ -21,9 +35,13 @@ module.exports = async (client, db) => {
           channel = null;
         }
       }
-      return channel?.isTextBased() ? channel : null;
+
+      const validChannel = channel?.isTextBased() ? channel : null;
+      logChannelCache.set(guild.id, { channel: validChannel, timestamp: Date.now() });
+
+      return validChannel;
     } catch (error) {
-      console.error('Error getting log channel:', error);
+      console.error(`[LogSystem] Error getting log channel for guild ${guild.id}:`, error);
       return null;
     }
   }
@@ -55,12 +73,12 @@ module.exports = async (client, db) => {
 
       await logChannel.send({ embeds: [embed] });
     } catch (error) {
-      console.error('Error sending log embed:', error);
+      console.error('[LogSystem] Error sending log embed:', error);
     }
   }
 
   function handleError(guild, error, event) {
-    console.error(`Error during ${event}:`, error);
+    console.error(`[LogSystem] Error during ${event}:`, error);
 
     const embed = new EmbedBuilder()
       .setTitle('Error Occurred')
@@ -82,26 +100,21 @@ module.exports = async (client, db) => {
       const hasPerm = me?.permissions?.has?.('ViewAuditLog');
       if (!hasPerm) return null;
 
-      const auditLogs = await guild.fetchAuditLogs({ 
-        type: auditType, 
+      const auditLogs = await guild.fetchAuditLogs({
+        type: auditType,
         limit: 10 // Increased limit for better accuracy
       });
-      
+
       // If targetId is provided, find the entry for that target
       if (targetId) {
         return auditLogs.entries.find(entry => entry.target?.id === targetId);
       }
-      
+
       return auditLogs.entries.first();
     } catch (error) {
-      console.error(`Failed to fetch audit logs for ${auditType}:`, error);
+      console.error(`[LogSystem] Failed to fetch audit logs for ${auditType}:`, error);
       return null;
     }
-  }
-
-  async function fetchAuditLogAfterDelay(guild, auditType, targetId = null) {
-    await new Promise(resolve => setTimeout(resolve, AUDIT_LOG_DELAY));
-    return await fetchAuditLogEntry(guild, auditType, targetId);
   }
 
   // Try to find the most appropriate audit log entry for an event
@@ -128,7 +141,7 @@ module.exports = async (client, db) => {
 
       return candidates[0] || entries[0] || null;
     } catch (error) {
-      console.error(`Failed to find matching audit entry for ${auditType}:`, error);
+      console.error(`[LogSystem] Failed to find matching audit entry for ${auditType}:`, error);
       return null;
     }
   }
@@ -151,7 +164,7 @@ module.exports = async (client, db) => {
       });
 
       if (recentRoleCreations.entries.size >= 3) {
-        console.log('Detected mass role creation, calling nuke protection');
+        console.log('[LogSystem] Detected mass role creation, calling nuke protection');
         await nukeProtection.handleMassRoleCreation(role.guild, executor);
       }
 
@@ -245,7 +258,7 @@ module.exports = async (client, db) => {
         const newPerms = newRole.permissions.toArray();
         const added = newPerms.filter(p => !oldPerms.includes(p));
         const removed = oldPerms.filter(p => !newPerms.includes(p));
-        
+
         if (added.length > 0) {
           changes.push({ name: 'Added Permissions', value: `\`${added.join(', ')}\`` });
         }
@@ -460,9 +473,9 @@ module.exports = async (client, db) => {
         limit: 5
       });
 
-      const roleLog = auditLogs.entries.find(entry => 
+      const roleLog = auditLogs.entries.find(entry =>
         entry.target?.id === newMember.id &&
-        (entry.changes?.some(change => 
+        (entry.changes?.some(change =>
           change.key === '$add' || change.key === '$remove'
         ))
       );
@@ -734,9 +747,9 @@ module.exports = async (client, db) => {
         changes.push({ name: 'Name', value: `\`${oldChannel.name}\` → \`${newChannel.name}\`` });
       }
       if (oldChannel.parent !== newChannel.parent) {
-        changes.push({ 
-          name: 'Category', 
-          value: `${oldChannel.parent ? `\`${oldChannel.parent.name}\`` : 'None'} → ${newChannel.parent ? `\`${newChannel.parent.name}\`` : 'None'}` 
+        changes.push({
+          name: 'Category',
+          value: `${oldChannel.parent ? `\`${oldChannel.parent.name}\`` : 'None'} → ${newChannel.parent ? `\`${newChannel.parent.name}\`` : 'None'}`
         });
       }
       if (oldChannel.topic !== newChannel.topic) {
@@ -787,390 +800,39 @@ module.exports = async (client, db) => {
       else if (oldState.channelId && !newState.channelId) {
         const log = await findMatchingAuditEntry(oldState.guild, AuditLogEvent.MemberDisconnect, { targetId: oldState.member?.user?.id, channelId: oldState.channel?.id, eventTimeMs: Date.now() });
         const executor = log?.executor;
-  
-          const embed = new EmbedBuilder()
+
+        const embed = new EmbedBuilder()
           .setTitle('User Left Voice Channel')
           .setDescription(`\`${oldState.member.user.tag}\` left \`${oldState.channel.name}\`${executor ? ` (disconnected by \`${executor.tag}\`)` : ''}`)
-            .addFields(
-              { name: 'User ID', value: `\`${oldState.member.user.id}\``, inline: true },
-              { name: 'Channel', value: `\`${oldState.channel.name}\``, inline: true },
+          .addFields(
+            { name: 'User ID', value: `\`${oldState.member.user.id}\``, inline: true },
+            { name: 'Channel', value: `\`${oldState.channel.name}\``, inline: true },
             { name: 'Channel ID', value: `\`${oldState.channel.id}\``, inline: true },
             { name: 'Was Muted', value: `\`${oldState.mute}\``, inline: true },
             { name: 'Was Deafened', value: `\`${oldState.deaf}\``, inline: true }
-            )
-          .setColor('Orange')
-            .setTimestamp();
-  
-          logEmbed(oldState.guild, embed);
+          )
+          .setColor('Red')
+          .setTimestamp();
+
+        logEmbed(oldState.guild, embed);
       }
       // Handle voice channel switches
-      else if (oldState.channelId !== newState.channelId) {
+      else if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
         const embed = new EmbedBuilder()
           .setTitle('User Switched Voice Channel')
-          .setDescription(`\`${newState.member.user.tag}\` switched from \`${oldState.channel.name}\` to \`${newState.channel.name}\``)
+          .setDescription(`\`${newState.member.user.tag}\` switched voice channels`)
           .addFields(
             { name: 'User ID', value: `\`${newState.member.user.id}\``, inline: true },
-            { name: 'Old Channel', value: `\`${oldState.channel.name}\``, inline: true },
-            { name: 'New Channel', value: `\`${newState.channel.name}\``, inline: true }
-          )
-          .setColor('Blue')
-          .setTimestamp();
-
-        logEmbed(newState.guild, embed);
-      }
-      // Handle mute/deafen changes
-      else if (oldState.mute !== newState.mute || oldState.deaf !== newState.deaf) {
-        const changes = [];
-        if (oldState.mute !== newState.mute) {
-          changes.push(`Mute: \`${oldState.mute}\` → \`${newState.mute}\``);
-        }
-        if (oldState.deaf !== newState.deaf) {
-          changes.push(`Deafen: \`${oldState.deaf}\` → \`${newState.deaf}\``);
-        }
-
-        const embed = new EmbedBuilder()
-          .setTitle('Voice State Updated')
-          .setDescription(`\`${newState.member.user.tag}\`'s voice state was updated`)
-          .addFields(
-            { name: 'User ID', value: `\`${newState.member.user.id}\``, inline: true },
-            { name: 'Channel', value: `\`${newState.channel.name}\``, inline: true },
-            { name: 'Changes', value: changes.join('\n') }
+            { name: 'From', value: `\`${oldState.channel.name}\``, inline: true },
+            { name: 'To', value: `\`${newState.channel.name}\``, inline: true }
           )
           .setColor('Yellow')
           .setTimestamp();
 
         logEmbed(newState.guild, embed);
-        }
-      } catch (error) {
-      handleError(newState.guild, error, 'voiceStateUpdate');
-    }
-  });
-
-  // ========================== Thread Events ==========================
-  client.on('threadCreate', async (thread) => {
-    try {
-      const log = await findMatchingAuditEntry(thread.guild, AuditLogEvent.ThreadCreate, { targetId: thread.id, eventTimeMs: Date.now() });
-      const executor = log?.executor;
-
-      const embed = new EmbedBuilder()
-        .setTitle('Thread Created')
-        .setDescription(`A new thread was created${executor ? ` by \`${executor.tag}\`` : ''}`)
-        .addFields(
-          { name: 'Thread Name', value: `\`${thread.name}\``, inline: true },
-          { name: 'Thread ID', value: `\`${thread.id}\``, inline: true },
-          { name: 'Parent Channel', value: `\`${thread.parent.name}\``, inline: true },
-          { name: 'Auto Archive Duration', value: `\`${thread.autoArchiveDuration} minutes\``, inline: true },
-          { name: 'Type', value: `\`${thread.type}\``, inline: true }
-        )
-        .setColor('Green')
-        .setTimestamp();
-
-      logEmbed(thread.guild, embed);
-      if (executor) {
-        await db.logModerationAction(executor.id, thread.guild.id, 'SYSTEM', 'THREAD_CREATE', `Created thread ${thread.name}`);
       }
     } catch (error) {
-      handleError(thread.guild, error, 'threadCreate');
+      handleError(newState.guild || oldState.guild, error, 'voiceStateUpdate');
     }
   });
-
-  client.on('threadDelete', async (thread) => {
-    try {
-      const log = await findMatchingAuditEntry(thread.guild, AuditLogEvent.ThreadDelete, { targetId: thread.id, eventTimeMs: Date.now() });
-      const executor = log?.executor;
-
-      const embed = new EmbedBuilder()
-        .setTitle('Thread Deleted')
-        .setDescription(`A thread was deleted${executor ? ` by \`${executor.tag}\`` : ''}`)
-        .addFields(
-          { name: 'Thread Name', value: `\`${thread.name}\``, inline: true },
-          { name: 'Thread ID', value: `\`${thread.id}\``, inline: true },
-          { name: 'Parent Channel', value: `\`${thread.parent.name}\``, inline: true },
-          { name: 'Type', value: `\`${thread.type}\``, inline: true }
-        )
-        .setColor('Red')
-        .setTimestamp();
-
-      logEmbed(thread.guild, embed);
-      if (executor) {
-        await db.logModerationAction(executor.id, thread.guild.id, 'SYSTEM', 'THREAD_DELETE', `Deleted thread ${thread.name}`);
-      }
-    } catch (error) {
-      handleError(thread.guild, error, 'threadDelete');
-    }
-  });
-
-  // ========================== Invite Events ==========================
-  client.on('inviteCreate', async (invite) => {
-    try {
-      const embed = new EmbedBuilder()
-        .setTitle('Invite Created')
-        .setDescription(`A new invite was created by \`${invite.inviter.tag}\``)
-        .addFields(
-          { name: 'Code', value: `\`${invite.code}\``, inline: true },
-          { name: 'Channel', value: `\`${invite.channel.name}\``, inline: true },
-          { name: 'Max Uses', value: `\`${invite.maxUses || 'Unlimited'}\``, inline: true },
-          { name: 'Max Age', value: `\`${invite.maxAge ? invite.maxAge + ' seconds' : 'Never'}\``, inline: true },
-          { name: 'Created By', value: `\`${invite.inviter.tag}\``, inline: true }
-        )
-        .setColor('Green')
-        .setTimestamp();
-
-      logEmbed(invite.guild, embed);
-      await db.logModerationAction(invite.inviter.id, invite.guild.id, 'SYSTEM', 'INVITE_CREATE', `Created invite ${invite.code}`);
-    } catch (error) {
-      handleError(invite.guild, error, 'inviteCreate');
-    }
-  });
-
-  client.on('inviteDelete', async (invite) => {
-    try {
-      const log = await findMatchingAuditEntry(invite.guild, AuditLogEvent.InviteDelete, { channelId: invite.channel?.id, eventTimeMs: Date.now() });
-      const executor = log?.executor;
-
-      const embed = new EmbedBuilder()
-        .setTitle('Invite Deleted')
-        .setDescription(`An invite was deleted${executor ? ` by \`${executor.tag}\`` : ''}`)
-        .addFields(
-          { name: 'Code', value: `\`${invite.code}\``, inline: true },
-          { name: 'Channel', value: `\`${invite.channel.name}\``, inline: true },
-          { name: 'Created By', value: `\`${invite.inviter.tag}\``, inline: true },
-          { name: 'Uses', value: `\`${invite.uses}\``, inline: true }
-        )
-        .setColor('Red')
-        .setTimestamp();
-
-      logEmbed(invite.guild, embed);
-      if (executor) {
-        await db.logModerationAction(executor.id, invite.guild.id, 'SYSTEM', 'INVITE_DELETE', `Deleted invite ${invite.code}`);
-      }
-    } catch (error) {
-      handleError(invite.guild, error, 'inviteDelete');
-    }
-  });
-
-  // ========================== Guild Events ==========================
-  client.on('guildUpdate', async (oldGuild, newGuild) => {
-    try {
-      const log = await findMatchingAuditEntry(newGuild, AuditLogEvent.GuildUpdate, { eventTimeMs: Date.now() });
-      const executor = log?.executor;
-
-      if (!executor) return;
-
-      const changes = [];
-      
-      // Basic Info Changes
-      if (oldGuild.name !== newGuild.name) {
-        changes.push({ name: 'Name', value: `\`${oldGuild.name}\` → \`${newGuild.name}\`` });
-      }
-      if (oldGuild.icon !== newGuild.icon) {
-        changes.push({ name: 'Icon', value: 'Updated' });
-      }
-      if (oldGuild.banner !== newGuild.banner) {
-        changes.push({ name: 'Banner', value: 'Updated' });
-      }
-      if (oldGuild.splash !== newGuild.splash) {
-        changes.push({ name: 'Splash', value: 'Updated' });
-      }
-      if (oldGuild.description !== newGuild.description) {
-        changes.push({ 
-          name: 'Description', 
-          value: `${oldGuild.description ? `\`${oldGuild.description}\`` : 'None'} → ${newGuild.description ? `\`${newGuild.description}\`` : 'None'}` 
-        });
-      }
-
-      // AFK Settings
-      if (oldGuild.afkChannel !== newGuild.afkChannel) {
-        changes.push({ 
-          name: 'AFK Channel', 
-          value: `${oldGuild.afkChannel ? `\`${oldGuild.afkChannel.name}\`` : 'None'} → ${newGuild.afkChannel ? `\`${newGuild.afkChannel.name}\`` : 'None'}` 
-        });
-      }
-      if (oldGuild.afkTimeout !== newGuild.afkTimeout) {
-        changes.push({ name: 'AFK Timeout', value: `\`${oldGuild.afkTimeout}\` → \`${newGuild.afkTimeout}\`` });
-      }
-
-      // Verification Level
-      if (oldGuild.verificationLevel !== newGuild.verificationLevel) {
-        changes.push({ 
-          name: 'Verification Level', 
-          value: `\`${oldGuild.verificationLevel}\` → \`${newGuild.verificationLevel}\`` 
-        });
-      }
-
-      // Content Filter
-      if (oldGuild.explicitContentFilter !== newGuild.explicitContentFilter) {
-        changes.push({ 
-          name: 'Content Filter', 
-          value: `\`${oldGuild.explicitContentFilter}\` → \`${newGuild.explicitContentFilter}\`` 
-        });
-      }
-
-      // Default Notification Settings
-      if (oldGuild.defaultMessageNotifications !== newGuild.defaultMessageNotifications) {
-        changes.push({ 
-          name: 'Default Notifications', 
-          value: `\`${oldGuild.defaultMessageNotifications}\` → \`${newGuild.defaultMessageNotifications}\`` 
-        });
-      }
-
-      // System Channel
-      if (oldGuild.systemChannel !== newGuild.systemChannel) {
-        changes.push({ 
-          name: 'System Channel', 
-          value: `${oldGuild.systemChannel ? `\`${oldGuild.systemChannel.name}\`` : 'None'} → ${newGuild.systemChannel ? `\`${newGuild.systemChannel.name}\`` : 'None'}` 
-        });
-      }
-
-      // Rules Channel
-      if (oldGuild.rulesChannel !== newGuild.rulesChannel) {
-        changes.push({ 
-          name: 'Rules Channel', 
-          value: `${oldGuild.rulesChannel ? `\`${oldGuild.rulesChannel.name}\`` : 'None'} → ${newGuild.rulesChannel ? `\`${newGuild.rulesChannel.name}\`` : 'None'}` 
-        });
-      }
-
-      // Public Updates Channel
-      if (oldGuild.publicUpdatesChannel !== newGuild.publicUpdatesChannel) {
-        changes.push({ 
-          name: 'Public Updates Channel', 
-          value: `${oldGuild.publicUpdatesChannel ? `\`${oldGuild.publicUpdatesChannel.name}\`` : 'None'} → ${newGuild.publicUpdatesChannel ? `\`${newGuild.publicUpdatesChannel.name}\`` : 'None'}` 
-        });
-      }
-
-      if (changes.length > 0) {
-        const embed = new EmbedBuilder()
-          .setTitle('Guild Settings Updated')
-          .setDescription(`Guild settings were updated by \`${executor.tag}\`.`)
-          .addFields(changes)
-          .setColor('Yellow')
-          .setTimestamp();
-
-        logEmbed(newGuild, embed);
-        await db.logModerationAction(executor.id, newGuild.id, 'SYSTEM', 'GUILD_UPDATE', 'Updated guild settings');
-      }
-    } catch (error) {
-      handleError(newGuild, error, 'guildUpdate');
-    }
-  });
-
-  // ========================== Bulk Message Deletion ==========================
-  client.on('messageDeleteBulk', async (messages) => {
-    try {
-      const firstMessage = messages.first();
-      if (!firstMessage || !firstMessage.guild) return;
-
-      const logChannel = await getLogChannel(firstMessage.guild);
-      if (!logChannel) return;
-
-      // Skip logging if the messages are in the log channel
-      if (firstMessage.channel.id === logChannel.id) return;
-
-      const log = await findMatchingAuditEntry(firstMessage.guild, AuditLogEvent.MessageBulkDelete, { channelId: firstMessage.channel?.id, eventTimeMs: Date.now() });
-      const executor = log?.executor;
-
-      // Get preview of up to 5 messages
-      const messagePreviews = [];
-      for (const message of messages.values()) {
-        if (messagePreviews.length >= 5) break;
-        if (message.content) {
-          messagePreviews.push({
-            author: message.author.tag,
-            content: message.content.slice(0, 100) + (message.content.length > 100 ? '...' : ''),
-            timestamp: message.createdTimestamp
-          });
-        }
-      }
-
-      const embed = new EmbedBuilder()
-        .setTitle('Bulk Messages Deleted')
-        .setDescription(`${messages.size} messages were deleted${executor ? ` by \`${executor.tag}\`` : ''}`)
-        .addFields(
-          { name: 'Channel', value: `\`${firstMessage.channel.name}\``, inline: true },
-          { name: 'Channel ID', value: `\`${firstMessage.channel.id}\``, inline: true },
-          { name: 'Total Messages', value: `\`${messages.size}\``, inline: true }
-        )
-        .setColor('Red')
-        .setTimestamp();
-
-      // Add message previews if any exist
-      if (messagePreviews.length > 0) {
-        const previewText = messagePreviews.map((msg, i) => 
-          `${i + 1}. **${msg.author}** (<t:${Math.floor(msg.timestamp / 1000)}:R>):\n${msg.content}`
-        ).join('\n\n');
-        
-        embed.addFields({
-          name: 'Message Previews',
-          value: previewText
-        });
-      }
-
-      logEmbed(firstMessage.guild, embed);
-      if (executor) {
-        await db.logModerationAction(
-          executor.id, 
-          firstMessage.guild.id, 
-          'SYSTEM', 
-          'MESSAGE_BULK_DELETE', 
-          `Deleted ${messages.size} messages in ${firstMessage.channel.name}`
-        );
-      }
-    } catch (error) {
-      handleError(firstMessage.guild, error, 'messageDeleteBulk');
-    }
-  });
-
-  // ========================== Webhook Events ==========================
-  client.on('webhookCreate', async (webhook) => {
-    try {
-      const log = await findMatchingAuditEntry(webhook.guild, AuditLogEvent.WebhookCreate, { channelId: webhook.channel?.id, eventTimeMs: Date.now() });
-      const executor = log?.executor;
-
-      if (!executor) return;
-
-      // Check for mass webhook creation
-      const recentWebhookCreations = await webhook.guild.fetchAuditLogs({
-        type: AuditLogEvent.WebhookCreate,
-        limit: 5
-      });
-
-      if (recentWebhookCreations.entries.size >= 3) {
-        console.log('Detected mass webhook creation, calling nuke protection');
-        await nukeProtection.handleMassWebhookCreation(webhook.guild, executor);
-      }
-
-      const embed = new EmbedBuilder()
-        .setTitle('Webhook Created')
-        .setDescription(`A new webhook was created by \`${executor.tag}\``)
-        .addFields(
-          { name: 'Webhook Name', value: `\`${webhook.name}\``, inline: true },
-          { name: 'Webhook ID', value: `\`${webhook.id}\``, inline: true },
-          { name: 'Channel', value: `\`${webhook.channel.name}\``, inline: true },
-          { name: 'Type', value: `\`${webhook.type}\``, inline: true }
-        )
-        .setColor('Green')
-        .setTimestamp();
-
-      logEmbed(webhook.guild, embed);
-      await db.logModerationAction(executor.id, webhook.guild.id, 'SYSTEM', 'WEBHOOK_CREATE', `Created webhook ${webhook.name}`);
-    } catch (error) {
-      handleError(webhook.guild, error, 'webhookCreate');
-    }
-  });
-
-  // ========================== Spam Detection ==========================
-  client.on('messageCreate', async (message) => {
-    if (message.author.bot) return;
-    if (!message.guild) return;
-
-    try {
-      // Check for spam
-      await nukeProtection.handleSpam(message);
-    } catch (error) {
-      console.error('Error handling message:', error);
-    }
-  });
-
-  // Initialize nuke protection
-  await nukeProtection.initialize();
 };

@@ -52,16 +52,9 @@ class NukeProtection {
         try {
             console.log('Loading nuke protection settings for all servers...');
             const servers = await db.getAllServers();
-            console.log('Found servers:', servers.length);
             for (const server of servers) {
-                console.log('Loading settings for server:', server.server_id);
                 const settings = await db.getNukeProtectionSettings(server.server_id);
                 const enabledFinal = (server.nuke_protection === 1) || (settings?.enabled === 1);
-                console.log('Enable flags for server', server.server_id, {
-                    serversTable: server.nuke_protection,
-                    settingsTable: settings?.enabled,
-                    finalEnabled: enabledFinal
-                });
 
                 this.settings[server.server_id] = {
                     enabled: enabledFinal,
@@ -89,7 +82,7 @@ class NukeProtection {
                     this.protectedServers.delete(server.server_id);
                 }
             }
-            console.log('Settings loaded successfully');
+            console.log(`Settings loaded for ${servers.length} servers`);
         } catch (error) {
             console.error('Error loading nuke protection settings:', error);
         }
@@ -109,7 +102,6 @@ class NukeProtection {
                 this.settings[serverId] = {};
             }
             this.settings[serverId].enabled = true;
-            console.log('Nuke protection enabled successfully');
             return true;
         } catch (error) {
             console.error(`Error enabling nuke protection for server ${serverId}:`, error);
@@ -131,7 +123,6 @@ class NukeProtection {
                 this.settings[serverId] = {};
             }
             this.settings[serverId].enabled = false;
-            console.log('Nuke protection disabled successfully');
             return true;
         } catch (error) {
             console.error(`Error disabling nuke protection for server ${serverId}:`, error);
@@ -142,16 +133,12 @@ class NukeProtection {
     isProtected(serverId) {
         const enabledInSettings = this.settings[serverId]?.enabled === true || this.settings[serverId]?.enabled === 1;
         const enabledInSet = this.protectedServers.has(serverId);
-        const isProtected = enabledInSettings || enabledInSet;
-        console.log('Checking if server is protected:', serverId, { enabledInSettings, enabledInSet, isProtected });
-        return isProtected;
+        return enabledInSettings || enabledInSet;
     }
 
     async getSettings(serverId) {
         try {
-            console.log('Getting settings for server:', serverId);
             const settings = await db.getNukeProtectionSettings(serverId);
-            console.log('Retrieved settings:', settings);
             return settings;
         } catch (error) {
             console.error(`Error getting settings for server ${serverId}:`, error);
@@ -162,9 +149,8 @@ class NukeProtection {
     async updateSettings(serverId, settings) {
         try {
             console.log('Updating settings for server:', serverId);
-            console.log('New settings:', settings);
             await db.updateNukeProtectionSettings(serverId, settings);
-            console.log('Settings updated successfully');
+
             // Refresh in-memory cache for this server from DB to keep camelCase mapping consistent
             const latest = await db.getNukeProtectionSettings(serverId);
             if (!this.settings[serverId]) this.settings[serverId] = {};
@@ -200,7 +186,7 @@ class NukeProtection {
     checkActionThreshold(guildId, actionType) {
         const now = Date.now();
         const key = `${guildId}-${actionType}`;
-        
+
         if (!this.cooldowns.has(key)) {
             this.cooldowns.set(key, {
                 count: 1,
@@ -222,25 +208,17 @@ class NukeProtection {
 
     // Handle mass role creation
     async handleMassRoleCreation(guild, executor) {
-        if (!this.isProtected(guild.id)) {
-            console.log('Server not protected:', guild.id);
-            return false;
-        }
-        
-        if (!this.checkActionThreshold(guild.id, 'roleCreate')) {
-            console.log('Action threshold not exceeded');
-            return false;
-        }
+        if (!this.isProtected(guild.id)) return false;
+        if (!this.checkActionThreshold(guild.id, 'roleCreate')) return false;
 
-        console.log('Handling mass role creation for guild:', guild.id);
-        console.log('Executor:', executor.tag);
+        console.log(`[NukeProtection] Handling mass role creation for guild ${guild.id} by ${executor.tag}`);
 
         try {
             // Track the action for slow nuke detection
             await this.trackSlowNuke(guild, executor, 'ROLE_CREATE');
 
             if (executor.bot) {
-                console.log('Banning bot for mass role creation');
+                console.log('[NukeProtection] Banning bot for mass role creation');
                 await guild.members.ban(executor.id, { reason: 'Nuke protection: Mass role creation' });
                 await this.sendAlert(guild, executor, 'Mass Role Creation', 'Bot attempted to create multiple roles');
                 return true;
@@ -248,16 +226,14 @@ class NukeProtection {
 
             const member = await guild.members.fetch(executor.id);
             if (member) {
-                console.log('Removing roles from user');
+                console.log('[NukeProtection] Removing roles from user');
                 await member.roles.set([]);
             }
 
             // Send alert for mass role creation
-            console.log('Sending alert for mass role creation');
             await this.sendAlert(guild, executor, 'Mass Role Creation', 'User attempted to create multiple roles');
-            
+
             // Log to database
-            console.log('Logging moderation action');
             await db.logModerationAction(
                 executor.id,
                 guild.id,
@@ -268,7 +244,7 @@ class NukeProtection {
 
             return true;
         } catch (error) {
-            console.error('Error handling mass role creation:', error);
+            console.error('[NukeProtection] Error handling mass role creation:', error);
             await this.sendAlert(guild, executor, 'Error', `Failed to handle mass role creation: ${error.message}`);
             return false;
         }
@@ -304,7 +280,7 @@ class NukeProtection {
 
             return true;
         } catch (error) {
-            console.error('Error handling mass role deletion:', error);
+            console.error('[NukeProtection] Error handling mass role deletion:', error);
             await this.sendAlert(guild, executor, 'Error', `Failed to handle mass role deletion: ${error.message}`);
             return false;
         }
@@ -340,7 +316,7 @@ class NukeProtection {
 
             return true;
         } catch (error) {
-            console.error('Error handling mass channel creation:', error);
+            console.error('[NukeProtection] Error handling mass channel creation:', error);
             await this.sendAlert(guild, executor, 'Error', `Failed to handle mass channel creation: ${error.message}`);
             return false;
         }
@@ -376,7 +352,7 @@ class NukeProtection {
 
             return true;
         } catch (error) {
-            console.error('Error handling mass channel deletion:', error);
+            console.error('[NukeProtection] Error handling mass channel deletion:', error);
             await this.sendAlert(guild, executor, 'Error', `Failed to handle mass channel deletion: ${error.message}`);
             return false;
         }
@@ -408,7 +384,7 @@ class NukeProtection {
 
             return true;
         } catch (error) {
-            console.error('Error handling mass emoji creation:', error);
+            console.error('[NukeProtection] Error handling mass emoji creation:', error);
             return false;
         }
     }
@@ -439,7 +415,7 @@ class NukeProtection {
 
             return true;
         } catch (error) {
-            console.error('Error handling mass emoji deletion:', error);
+            console.error('[NukeProtection] Error handling mass emoji deletion:', error);
             return false;
         }
     }
@@ -449,14 +425,11 @@ class NukeProtection {
         if (!this.isProtected(guild.id)) return false;
         if (!this.checkActionThreshold(guild.id, 'webhookCreate')) return false;
 
-        console.log('Handling mass webhook creation for guild:', guild.id);
-        console.log('Executor:', executor.tag);
-
         try {
             await this.trackSlowNuke(guild, executor, 'WEBHOOK_CREATE');
 
             if (executor.bot) {
-                console.log('Banning bot for mass webhook creation');
+                console.log('[NukeProtection] Banning bot for mass webhook creation');
                 await guild.members.ban(executor.id, { reason: 'Nuke protection: Mass webhook creation' });
                 await this.sendAlert(guild, executor, 'Mass Webhook Creation', 'Bot attempted to create multiple webhooks');
                 return true;
@@ -464,7 +437,7 @@ class NukeProtection {
 
             const member = await guild.members.fetch(executor.id);
             if (member) {
-                console.log('Removing roles from user');
+                console.log('[NukeProtection] Removing roles from user');
                 await member.roles.set([]);
             }
 
@@ -479,7 +452,7 @@ class NukeProtection {
 
             return true;
         } catch (error) {
-            console.error('Error handling mass webhook creation:', error);
+            console.error('[NukeProtection] Error handling mass webhook creation:', error);
             await this.sendAlert(guild, executor, 'Error', `Failed to handle mass webhook creation: ${error.message}`);
             return false;
         }
@@ -515,7 +488,7 @@ class NukeProtection {
 
             return true;
         } catch (error) {
-            console.error('Error handling mass ban:', error);
+            console.error('[NukeProtection] Error handling mass ban:', error);
             await this.sendAlert(guild, executor, 'Error', `Failed to handle mass ban: ${error.message}`);
             return false;
         }
@@ -551,7 +524,7 @@ class NukeProtection {
 
             return true;
         } catch (error) {
-            console.error('Error handling mass kick:', error);
+            console.error('[NukeProtection] Error handling mass kick:', error);
             await this.sendAlert(guild, executor, 'Error', `Failed to handle mass kick: ${error.message}`);
             return false;
         }
@@ -599,7 +572,6 @@ class NukeProtection {
 
         // Initialize settings for this guild if they don't exist
         if (!this.settings[message.guild.id]) {
-            console.log('Initializing default settings for guild:', message.guild.id);
             this.settings[message.guild.id] = {
                 spamTimeWindow: 10000,
                 spamMessageCount: 5,
@@ -625,22 +597,22 @@ class NukeProtection {
 
         // Remove old messages outside the time window
         const timeWindow = this.settings[message.guild.id].spamTimeWindow;
-        const recentMessages = userHistory.filter(msg => 
+        const recentMessages = userHistory.filter(msg =>
             currentTime - msg.timestamp <= timeWindow
         );
 
         // Check if messages are similar and sent across multiple channels
         if (recentMessages.length >= this.settings[message.guild.id].spamMessageCount) {
             const uniqueChannels = new Set(recentMessages.map(msg => msg.channelId));
-            
+
             if (uniqueChannels.size >= this.settings[message.guild.id].spamChannelCount) {
-                const similarMessages = recentMessages.filter(msg => 
+                const similarMessages = recentMessages.filter(msg =>
                     this.calculateSimilarity(message.content, msg.content) >= this.settings[message.guild.id].spamSimilarityThreshold
                 );
 
                 if (similarMessages.length >= this.settings[message.guild.id].spamMessageCount) {
                     await this.trackSlowNuke(message.guild, message.author, 'SPAM');
-                    await this.sendAlert(message.guild, message.author, 'Spam Detection', 
+                    await this.sendAlert(message.guild, message.author, 'Spam Detection',
                         `User sent ${similarMessages.length} similar messages across ${uniqueChannels.size} channels`
                     );
                     return true;
@@ -653,51 +625,34 @@ class NukeProtection {
         return false;
     }
 
-    async handleUser(user, guild, actionType) {
-        // Implementation of handleUser method
-    }
-
     async sendAlert(guild, executor, actionType, details) {
         try {
-            console.log('Attempting to send alert for:', {
-                guild: guild.id,
-                executor: executor.id,
-                actionType,
-                details
-            });
-
             // Get log channel from database
             const logChannelId = await db.getLogChannel(guild.id);
-            console.log('Retrieved log channel ID:', logChannelId);
 
             if (!logChannelId) {
-                console.log('No log channel set for guild:', guild.id);
                 return;
             }
 
             // Get the channel from cache
             const logChannel = guild.channels.cache.get(logChannelId);
-            console.log('Found log channel:', logChannel?.name);
 
             if (!logChannel) {
-                console.log('Could not find log channel in cache:', logChannelId);
                 // Try to fetch the channel
                 try {
                     const fetchedChannel = await guild.channels.fetch(logChannelId);
                     if (!fetchedChannel) {
-                        console.log('Could not fetch log channel:', logChannelId);
                         return;
                     }
-                    console.log('Successfully fetched log channel:', fetchedChannel.name);
                 } catch (fetchError) {
-                    console.error('Error fetching log channel:', fetchError);
+                    console.error('[NukeProtection] Error fetching log channel:', fetchError);
                     return;
                 }
             }
 
             // Calculate account age
             const accountAge = this.getAccountAge(executor);
-            
+
             // Get user's roles
             const member = await guild.members.fetch(executor.id).catch(() => null);
             const roles = member ? member.roles.cache.map(r => r.name).join(', ') : 'Unknown';
@@ -738,60 +693,59 @@ class NukeProtection {
                         .setStyle(ButtonStyle.Primary)
                 );
 
-            console.log('Sending alert embed to channel:', logChannel.name);
-            const alertMessage = await logChannel.send({ 
+            const alertMessage = await logChannel.send({
                 content: '@here',
                 embeds: [embed],
                 components: [row]
             });
 
             // Create a collector for the buttons
-            const collector = alertMessage.createMessageComponentCollector({ 
+            const collector = alertMessage.createMessageComponentCollector({
                 time: 300000 // 5 minutes
             });
 
             collector.on('collect', async (interaction) => {
                 if (!interaction.member.permissions.has('Administrator')) {
-                    return interaction.reply({ 
+                    return interaction.reply({
                         content: 'You need Administrator permissions to use these buttons.',
-                        ephemeral: true 
+                        ephemeral: true
                     });
                 }
 
                 try {
                     switch (interaction.customId) {
                         case 'ban_user':
-                            await guild.members.ban(executor.id, { 
-                                reason: `Nuke protection: ${actionType}` 
+                            await guild.members.ban(executor.id, {
+                                reason: `Nuke protection: ${actionType}`
                             });
-                            await interaction.reply({ 
+                            await interaction.reply({
                                 content: `✅ Successfully banned ${executor.tag}`,
-                                ephemeral: true 
+                                ephemeral: true
                             });
                             break;
                         case 'kick_user':
                             await guild.members.kick(executor.id, `Nuke protection: ${actionType}`);
-                            await interaction.reply({ 
+                            await interaction.reply({
                                 content: `✅ Successfully kicked ${executor.tag}`,
-                                ephemeral: true 
+                                ephemeral: true
                             });
                             break;
                         case 'remove_roles':
                             const targetMember = await guild.members.fetch(executor.id);
                             if (targetMember) {
                                 await targetMember.roles.set([]);
-                                await interaction.reply({ 
+                                await interaction.reply({
                                     content: `✅ Successfully removed all roles from ${executor.tag}`,
-                                    ephemeral: true 
+                                    ephemeral: true
                                 });
                             }
                             break;
                     }
                 } catch (error) {
-                    console.error('Error handling button interaction:', error);
-                    await interaction.reply({ 
+                    console.error('[NukeProtection] Error handling button interaction:', error);
+                    await interaction.reply({
                         content: '❌ An error occurred while processing your action.',
-                        ephemeral: true 
+                        ephemeral: true
                     });
                 }
             });
@@ -819,10 +773,7 @@ class NukeProtection {
                 alertMessage.edit({ components: [disabledRow] }).catch(console.error);
             });
 
-            console.log('Alert sent successfully');
-
             // Log to database
-            console.log('Logging moderation action to database');
             await db.logModerationAction(
                 executor.id,
                 guild.id,
@@ -830,9 +781,8 @@ class NukeProtection {
                 'NUKE_PROTECTION',
                 `${actionType}: ${details}`
             );
-            console.log('Database log completed');
         } catch (error) {
-            console.error('Error in sendAlert:', error);
+            console.error('[NukeProtection] Error in sendAlert:', error);
             // Try to log the error to a default channel if available
             try {
                 const defaultChannel = guild.systemChannel || guild.channels.cache.find(c => c.type === 'GUILD_TEXT');
@@ -840,7 +790,7 @@ class NukeProtection {
                     await defaultChannel.send(`⚠️ Error sending nuke protection alert: ${error.message}`);
                 }
             } catch (defaultError) {
-                console.error('Error sending to default channel:', defaultError);
+                console.error('[NukeProtection] Error sending to default channel:', defaultError);
             }
         }
     }
@@ -854,12 +804,6 @@ class NukeProtection {
 
     async trackSlowNuke(guild, executor, actionType) {
         if (!executor.bot && this.actionThresholds.slowNuke.botOnly) return;
-
-        console.log('Tracking slow nuke action:', {
-            guild: guild.id,
-            executor: executor.id,
-            actionType
-        });
 
         const key = `${guild.id}-${executor.id}`;
         const now = Date.now();
@@ -878,28 +822,25 @@ class NukeProtection {
         history.lastAction = now;
 
         // Remove actions outside the time window
-        history.actions = history.actions.filter(action => 
+        history.actions = history.actions.filter(action =>
             now - action.timestamp <= timeWindow
         );
 
-        console.log('Current action count:', history.actions.length);
-        console.log('Action threshold:', this.actionThresholds.slowNuke.actionThreshold);
-
         // Check if we've exceeded the threshold
         if (history.actions.length >= this.actionThresholds.slowNuke.actionThreshold) {
-            console.log('Slow nuke threshold exceeded, sending alert');
+            console.log('[NukeProtection] Slow nuke threshold exceeded, sending alert');
             const details = `Detected ${history.actions.length} actions within ${timeWindow / 3600000} hours`;
             await this.sendAlert(guild, executor, 'Slow Nuke Detection', details);
-            
+
             // Take action against the bot
             if (executor.bot) {
                 try {
-                    console.log('Banning bot for slow nuke attempt');
-                    await guild.members.ban(executor.id, { 
-                        reason: 'Nuke protection: Slow nuke attempt detected' 
+                    console.log('[NukeProtection] Banning bot for slow nuke attempt');
+                    await guild.members.ban(executor.id, {
+                        reason: 'Nuke protection: Slow nuke attempt detected'
                     });
                 } catch (error) {
-                    console.error('Error banning bot:', error);
+                    console.error('[NukeProtection] Error banning bot:', error);
                 }
             }
 
@@ -913,7 +854,7 @@ class NukeProtection {
         if (!this.slowNukeHistory.has(key)) return null;
 
         const history = this.slowNukeHistory.get(key);
-        const actions = history.actions.map(action => 
+        const actions = history.actions.map(action =>
             `${action.type} (${new Date(action.timestamp).toLocaleTimeString()})`
         ).join('\n');
 
@@ -923,4 +864,4 @@ class NukeProtection {
 
 // Create and export a singleton instance
 const nukeProtection = new NukeProtection();
-module.exports = nukeProtection; 
+module.exports = nukeProtection;
