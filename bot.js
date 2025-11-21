@@ -1,7 +1,7 @@
 const { Client, Events, GatewayIntentBits, Partials, Collection, EmbedBuilder, REST, Routes } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const sqlite3 = require('sqlite3').verbose(); // Using SQLite for local database
+
 const config = require('./config');
 const db = require('./utils/database');
 const commandHandler = require('./utils/commandHandler');
@@ -12,10 +12,10 @@ const starboardEvent = require('./events/starboardEvent.js');
 const nukeProtection = require('./utils/nukeProtection');
 
 // Create a client instance with the correct intents
-const client = new Client({ 
+const client = new Client({
   intents: [
-    GatewayIntentBits.Guilds, 
-    GatewayIntentBits.GuildMessages, 
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent, // If you need to access message content
     GatewayIntentBits.GuildPresences, // If you need presence updates
     GatewayIntentBits.DirectMessages,
@@ -48,7 +48,7 @@ async function startBot() {
     console.log('Database initialized successfully');
 
     // Load commands
-    await loadCommands();
+    commandHandler.loadCommands();
     console.log('Commands loaded successfully');
 
     // Register slash commands
@@ -66,39 +66,7 @@ async function startBot() {
   }
 }
 
-// Load commands from directories
-async function loadCommands() {
-  try {
-    // Load commands from each folder
-    const commandFolders = fs.readdirSync('./commands');
-    for (const folder of commandFolders) {
-        console.log(`Loading commands from folder: ${folder}`);
-        const commandFiles = fs.readdirSync(`./commands/${folder}`).filter(file => file.endsWith('.js'));
-        for (const file of commandFiles) {
-            console.log(`Loading command file: ${file}`);
-            const command = require(`./commands/${folder}/${file}`);
-            console.log(`Loaded command: ${command.name} from ${folder}/${file}`);
-            client.commands.set(command.name, command);
-        }
-    }
 
-    // Load slash commands
-    const slashCommandFolders = fs.readdirSync(path.join(__dirname, 'slashcommands'));
-    for (const folder of slashCommandFolders) {
-      const slashCommandFiles = fs.readdirSync(path.join(__dirname, 'slashcommands', folder))
-        .filter(file => file.endsWith('.js'));
-
-      for (const file of slashCommandFiles) {
-        const slashCommand = require(path.join(__dirname, 'slashcommands', folder, file));
-        slashCommand.category = folder;
-        client.slashCommands.set(slashCommand.data.name, slashCommand);
-      }
-    }
-  } catch (error) {
-    handleError(error, 'loadCommands');
-    throw error;
-  }
-}
 
 // Register slash commands with Discord
 async function registerSlashCommands() {
@@ -108,10 +76,9 @@ async function registerSlashCommands() {
     }
 
     const rest = new REST({ version: '10' }).setToken(config.token);
-    
+
     // Get all slash commands
-    const slashCommands = Array.from(client.slashCommands.values())
-      .map(cmd => cmd.data.toJSON());
+    const slashCommands = commandHandler.getSlashCommands();
 
     // Register commands globally
     await rest.put(
@@ -131,18 +98,18 @@ function setupEventListeners() {
   // Ready event
   client.once(Events.ClientReady, async () => {
     console.log(`Logged in as ${client.user.tag}`);
-    
+
     // Health check and status logging
     console.log('=== Bot Health Check ===');
     console.log(`Guilds: ${client.guilds.cache.size}`);
-    console.log(`Commands loaded: ${client.commands.size}`);
-    console.log(`Slash commands loaded: ${client.slashCommands.size}`);
+    console.log(`Commands loaded: ${commandHandler.commands.size}`);
+    console.log(`Slash commands loaded: ${commandHandler.slashCommands.size}`);
     console.log(`Prefix: ${prefix}`);
     console.log(`Database: ${db ? 'Connected' : 'Not connected'}`);
     console.log(`Token: ${config.token ? 'Set' : 'Missing'}`);
     console.log(`Client ID: ${config.clientId ? 'Set' : 'Missing'}`);
     console.log('========================');
-    
+
     // Warn about missing critical config
     if (!config.token) {
       console.warn('⚠️  WARNING: Bot token is missing from config!');
@@ -153,7 +120,7 @@ function setupEventListeners() {
     if (!db) {
       console.warn('⚠️  WARNING: Database connection failed!');
     }
-    
+
     // Initialize server data
     for (const guild of client.guilds.cache.values()) {
       try {
@@ -170,31 +137,31 @@ function setupEventListeners() {
     // Initialize modules
     try {
       console.log('Starting module initialization...');
-      
+
       // Start auto status updater
       const changeStatusModule = require('./commands/BAdmin/change_status');
       changeStatusModule.startAutoStatus(client);
       console.log('✅ Auto status updater started');
-      
+
       // Start VC tracking
       VCTracking(client, db);
       console.log('✅ VC tracking initialized');
-      
+
       // Initialize nuke protection BEFORE registering log/event listeners
       console.log('Initializing nuke protection...');
       const success = await nukeProtection.initialize();
       console.log(`✅ Nuke protection initialized: ${success}`);
-      
+
       // Initialize logging and events
       await logStuff(client, db);
       console.log('✅ Logging system initialized');
-      
+
       MemberJoin(client, db);
       console.log('✅ Member join events initialized');
-      
+
       starboardEvent(client, db);
       console.log('✅ Starboard events initialized');
-      
+
       console.log('✅ All modules initialized successfully');
     } catch (error) {
       console.error('❌ Error initializing modules:', error);
@@ -220,66 +187,16 @@ function setupEventListeners() {
         // Debug logging
         console.log('Command requested:', commandName);
 
-        // Try using the commandHandler first
         try {
-          // Set up commandHandler with current client collections if needed
-          if (commandHandler.commands.size === 0) {
-            console.log('Initializing commandHandler with loaded commands');
-            commandHandler.commands = client.commands;
-            commandHandler.slashCommands = client.slashCommands;
-          }
-          
           const handled = await commandHandler.handlePrefixCommand(message, commandName, args);
           if (handled) {
             console.log(`Command ${commandName} handled by commandHandler`);
-            return; // Command was handled by the handler
+            return;
+          } else {
+            console.log('Command not found:', commandName);
           }
         } catch (handlerError) {
           console.error(`Error using commandHandler for ${commandName}:`, handlerError);
-          // Fall back to the direct execution method below
-        }
-
-        // Fall back to direct command execution
-        console.log('Available commands:', Array.from(client.commands.keys()));
-        const command = client.commands.get(commandName) || 
-          client.commands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
-
-        // Debug logging
-        console.log('Command found:', command ? command.name : 'null');
-        if (command) {
-            console.log('Command details:', {
-                name: command.name,
-                description: command.description,
-                permissions: command.permissions
-            });
-        }
-
-        if (command) {
-            try {
-                // Check permissions if required
-                if (command.permissions && command.permissions.length > 0) {
-                    console.log('Checking permissions:', command.permissions);
-                    const hasPermission = command.permissions.every(permission =>
-                        message.member.permissions.has(permission)
-                    );
-                    if (!hasPermission) {
-                        console.log('Permission check failed');
-                        return message.reply('You do not have permission to use this command.');
-                    }
-                    console.log('Permission check passed');
-                }
-
-                // Execute command
-                console.log('Executing command:', command.name);
-                // IMPORTANT: Fix parameter order to match what commands expect
-                await command.execute(message, args, client, prefix, db);
-                console.log('Command execution completed');
-            } catch (error) {
-                console.error('Error executing command:', error.stack || error);
-                message.reply('There was an error executing that command.');
-            }
-        } else {
-          console.log('Command not found:', commandName);
         }
       }
 
@@ -295,36 +212,14 @@ function setupEventListeners() {
     if (!interaction.isCommand()) return;
 
     try {
-      // Try using the commandHandler first
-      try {
-        if (commandHandler.slashCommands.size === 0) {
-          console.log('Initializing commandHandler with loaded slash commands');
-          commandHandler.slashCommands = client.slashCommands;
-        }
-        
-        const handled = await commandHandler.handleSlashCommand(interaction);
-        if (handled) {
-          console.log(`Slash command ${interaction.commandName} handled by commandHandler`);
-          return; // Command was handled by the handler
-        }
-      } catch (handlerError) {
-        console.error(`Error using commandHandler for slash command ${interaction.commandName}:`, handlerError);
-        // Fall back to the direct execution method below
-      }
-
-      // Fall back to direct slash command execution
-      const command = client.slashCommands.get(interaction.commandName);
-      if (!command) return;
-
-      console.log('Executing slash command:', interaction.commandName);
-      await command.execute(interaction, db);
-      console.log('Slash command execution completed');
+      const handled = await commandHandler.handleSlashCommand(interaction);
+      if (handled) return;
     } catch (error) {
       console.error('Error handling slash command:', error.stack || error);
       if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ 
-          content: 'There was an error executing this command!', 
-          ephemeral: true 
+        await interaction.reply({
+          content: 'There was an error executing this command!',
+          ephemeral: true
         });
       } else if (interaction.deferred) {
         await interaction.editReply({
@@ -377,7 +272,7 @@ async function handleXpGain(message) {
     // Check for level up
     const userLevel = await db.getUserLevel(userId, serverId);
     const xpToNextLevel = userLevel.level * 100;
-    
+
     if (userLevel.xp >= xpToNextLevel) {
       const newLevel = userLevel.level + 1;
       await db.updateUserLevel(userId, serverId, newLevel);

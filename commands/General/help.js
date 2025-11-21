@@ -1,6 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const commandHandler = require('../../utils/commandHandler');
 
 module.exports = {
   name: 'help',
@@ -12,8 +13,8 @@ module.exports = {
     // If a specific command is requested
     if (args[0]) {
       console.log(`[HELP] Looking for specific command: ${args[0]}`);
-      const command = client.commands.get(args[0]) || 
-        client.commands.find(cmd => cmd.aliases && cmd.aliases.includes(args[0]));
+      const command = commandHandler.commands.get(args[0]) ||
+        commandHandler.commands.find(cmd => cmd.aliases && cmd.aliases.includes(args[0]));
 
       if (!command) {
         return message.reply('That command does not exist.');
@@ -23,7 +24,7 @@ module.exports = {
       if (command.category === 'BAdmin' || command.category === 'BOwner') {
         try {
           console.log(`[HELP] Checking permissions for ${message.author.tag} to view ${command.category} command`);
-          
+
           // Use Promise-based db.get method
           const userData = await db.get('SELECT is_admin, is_owner FROM users WHERE id = ?', [message.author.id]);
           console.log(`[HELP] User permission data:`, userData);
@@ -63,11 +64,11 @@ module.exports = {
     let isOwner = false;
     try {
       console.log(`[HELP] Fetching permissions for user ${message.author.id}`);
-      
+
       // Use Promise-based db.get method
       const userData = await db.get('SELECT is_admin, is_owner FROM users WHERE id = ?', [message.author.id]);
       console.log(`[HELP] User permissions data:`, userData);
-      
+
       isAdmin = userData?.is_admin === 1;
       isOwner = userData?.is_owner === 1;
     } catch (error) {
@@ -92,15 +93,15 @@ module.exports = {
       // Add commands to their respective categories
       for (const file of commandFiles) {
         const commandName = file.slice(0, -3);
-        const command = client.commands.get(commandName);
+        const command = commandHandler.commands.get(commandName);
         if (command) {
           // Skip BAdmin and BOwner commands if user doesn't have permission
           if (folder === 'BAdmin' && !isAdmin) continue;
           if (folder === 'BOwner' && !isOwner) continue;
-          
+
           categories[folder].push(command);
         } else {
-          console.log(`[HELP] Command not found in client.commands: ${commandName}`);
+          console.log(`[HELP] Command not found in commandHandler.commands: ${commandName}`);
         }
       }
     }
@@ -109,13 +110,13 @@ module.exports = {
     const activeCategories = Object.entries(categories)
       .filter(([_, cmds]) => cmds.length > 0)
       .map(([name]) => name);
-    
+
     console.log(`[HELP] Active categories:`, activeCategories);
 
     // Create buttons and split them into rows of max 5 buttons
     const buttonRows = [];
     let currentRow = new ActionRowBuilder();
-    
+
     activeCategories.forEach((category, index) => {
       const button = new ButtonBuilder()
         .setCustomId(category)
@@ -164,7 +165,7 @@ module.exports = {
       const categoryEmbed = new EmbedBuilder()
         .setColor('#0099ff')
         .setTitle(`${category} Commands`)
-        .setDescription(commands.map(cmd => 
+        .setDescription(commands.map(cmd =>
           `**${prefix}${cmd.name}** - ${cmd.description || 'No description available'}`
         ).join('\n'))
         .setFooter({ text: 'Bot Help System' })
@@ -176,7 +177,7 @@ module.exports = {
     collector.on('end', () => {
       // Disable all buttons when the collector ends
       const disabledRows = buttonRows.map(row => {
-        const disabledComponents = row.components.map(button => 
+        const disabledComponents = row.components.map(button =>
           ButtonBuilder.from(button.data).setDisabled(true)
         );
         return new ActionRowBuilder().addComponents(disabledComponents);

@@ -45,7 +45,7 @@ class CommandHandler {
     }
 
     async handlePrefixCommand(message, commandName, args) {
-        const command = this.commands.get(commandName) || 
+        const command = this.commands.get(commandName) ||
             this.commands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
 
         if (!command) return false;
@@ -63,7 +63,7 @@ class CommandHandler {
             console.warn('[CommandHandler] Blacklist check failed (continuing):', blErr);
         }
 
-        // Permission check (mirror bot.js direct path)
+        // Permission check
         try {
             if (command.permissions && command.permissions.length > 0) {
                 const hasPermission = command.permissions.every(permission =>
@@ -85,7 +85,7 @@ class CommandHandler {
 
         const now = Date.now();
         const timestamps = this.cooldowns.get(command.name);
-        const cooldownAmount = (command.cooldown || 3) * 1000; // Default 3 second cooldown if not specified
+        const cooldownAmount = (command.cooldown || 3) * 1000;
 
         if (timestamps.has(message.author.id)) {
             const expirationTime = timestamps.get(message.author.id) + cooldownAmount;
@@ -101,16 +101,10 @@ class CommandHandler {
         setTimeout(() => timestamps.delete(message.author.id), cooldownAmount);
 
         try {
-            // IMPORTANT: Make sure all parameters are passed correctly
-            // Most commands expect (message, args, client, prefix, db)
             console.log(`[CommandHandler] Executing command: ${command.name}`);
-            
-            // Get the client from the message
             const client = message.client;
-            // Get the prefix from config or use default
-            const prefix = '!'; // Default, should match bot.js
-            
-            // Execute command with all expected parameters
+            const prefix = config.prefix || '!';
+
             await command.execute(message, args, client, prefix, db);
             console.log(`[CommandHandler] Command executed successfully: ${command.name}`);
             return true;
@@ -143,18 +137,17 @@ class CommandHandler {
                 console.warn('[CommandHandler] Slash blacklist check failed (continuing):', blErr);
             }
 
-            // Most slash commands expect (interaction, db)
             console.log(`[CommandHandler] Executing slash command: ${interaction.commandName}`);
             await command.execute(interaction, db);
             console.log(`[CommandHandler] Slash command executed successfully: ${interaction.commandName}`);
             return true;
         } catch (error) {
             console.error(`[CommandHandler] Error executing slash command ${interaction.commandName}:`, error.stack || error);
-            
+
             if (!interaction.replied && !interaction.deferred) {
-                await interaction.reply({ 
-                    content: 'There was an error executing this command!', 
-                    ephemeral: true 
+                await interaction.reply({
+                    content: 'There was an error executing this command!',
+                    ephemeral: true
                 });
             } else if (interaction.deferred) {
                 await interaction.editReply({
@@ -166,4 +159,4 @@ class CommandHandler {
     }
 }
 
-module.exports = new CommandHandler(); 
+module.exports = new CommandHandler();
