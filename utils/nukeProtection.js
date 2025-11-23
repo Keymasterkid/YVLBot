@@ -146,42 +146,6 @@ class NukeProtection {
         }
     }
 
-    async updateSettings(serverId, settings) {
-        try {
-            console.log('Updating settings for server:', serverId);
-            await db.updateNukeProtectionSettings(serverId, settings);
-
-            // Refresh in-memory cache for this server from DB to keep camelCase mapping consistent
-            const latest = await db.getNukeProtectionSettings(serverId);
-            if (!this.settings[serverId]) this.settings[serverId] = {};
-            const currentEnabled = this.settings[serverId].enabled === true || this.settings[serverId].enabled === 1;
-            this.settings[serverId] = {
-                enabled: currentEnabled,
-                roleCreationLimit: latest?.role_creation_limit ?? this.settings[serverId].roleCreationLimit ?? 5,
-                roleDeletionLimit: latest?.role_deletion_limit ?? this.settings[serverId].roleDeletionLimit ?? 5,
-                channelCreationLimit: latest?.channel_creation_limit ?? this.settings[serverId].channelCreationLimit ?? 5,
-                channelDeletionLimit: latest?.channel_deletion_limit ?? this.settings[serverId].channelDeletionLimit ?? 5,
-                emojiCreationLimit: latest?.emoji_creation_limit ?? this.settings[serverId].emojiCreationLimit ?? 5,
-                emojiDeletionLimit: latest?.emoji_deletion_limit ?? this.settings[serverId].emojiDeletionLimit ?? 5,
-                webhookCreationLimit: latest?.webhook_creation_limit ?? this.settings[serverId].webhookCreationLimit ?? 5,
-                banLimit: latest?.ban_limit ?? this.settings[serverId].banLimit ?? 5,
-                kickLimit: latest?.kick_limit ?? this.settings[serverId].kickLimit ?? 5,
-                spamMessageCount: latest?.spam_message_count ?? this.settings[serverId].spamMessageCount ?? 5,
-                spamChannelCount: latest?.spam_channel_count ?? this.settings[serverId].spamChannelCount ?? 3,
-                spamTimeWindow: latest?.spam_time_window ?? this.settings[serverId].spamTimeWindow ?? 10000,
-                spamSimilarityThreshold: latest?.spam_similarity_threshold ?? this.settings[serverId].spamSimilarityThreshold ?? 0.8,
-                slowNukeTimeWindow: latest?.slow_nuke_time_window ?? this.settings[serverId].slowNukeTimeWindow ?? 3600000,
-                slowNukeActionThreshold: latest?.slow_nuke_action_threshold ?? this.settings[serverId].slowNukeActionThreshold ?? 10,
-                slowNukeBotOnly: latest?.slow_nuke_bot_only ?? this.settings[serverId].slowNukeBotOnly ?? 1,
-                alertChannel: latest?.alert_channel ?? this.settings[serverId].alertChannel ?? null
-            };
-            return true;
-        } catch (error) {
-            console.error(`Error updating settings for server ${serverId}:`, error);
-            return false;
-        }
-    }
-
     // Check if an action exceeds the threshold within the cooldown period
     checkActionThreshold(guildId, actionType) {
         const now = Date.now();

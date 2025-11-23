@@ -24,6 +24,10 @@ module.exports = (client, db) => {
           const userServerKey = `${userId}-${serverId}`;
           if (!userVCData.has(userServerKey)) {
             userVCData.set(userServerKey, { start: Date.now(), userId, serverId });
+            // Also update last join time since we just discovered them
+            db.updateVCLastJoin(userId, serverId).catch(err =>
+              console.error(`[VC Tracking] Error updating last join for startup user <@${userId}>:`, err)
+            );
           }
         });
       });
@@ -46,11 +50,8 @@ module.exports = (client, db) => {
         // Only update if at least 1 minute has passed
         if (duration < 60) return true;
 
-        const hours = Math.floor(duration / 3600);
-        const minutes = Math.floor((duration % 3600) / 60);
-
         // Update activity in the database
-        await updateVCActivity(db, data.userId, data.serverId, hours, minutes);
+        await db.updateVCTime(data.userId, data.serverId, duration);
 
         // Reset start time after saving but keep tracking
         userVCData.set(userServerKey, {
@@ -89,6 +90,11 @@ module.exports = (client, db) => {
       // Start tracking VC time
       if (!userVCData.has(userServerKey)) {
         userVCData.set(userServerKey, { start: Date.now(), userId, serverId });
+        try {
+          await db.updateVCLastJoin(userId, serverId);
+        } catch (error) {
+          console.error(`[VC Tracking] Error updating last join for <@${userId}>:`, error);
+        }
       }
     }
 
@@ -97,12 +103,10 @@ module.exports = (client, db) => {
       const data = userVCData.get(userServerKey);
       if (data) {
         const duration = Math.floor((Date.now() - data.start) / 1000); // Duration in seconds
-        const hours = Math.floor(duration / 3600);
-        const minutes = Math.floor((duration % 3600) / 60);
 
         try {
           // Update VC activity in the database
-          await updateVCActivity(db, userId, serverId, hours, minutes);
+          await db.updateVCTime(userId, serverId, duration);
         } catch (error) {
           console.error(`Error updating VC data for user <@${userId}> in server <@${serverId}>: ${error.message}`);
         }
@@ -117,10 +121,9 @@ module.exports = (client, db) => {
       const data = userVCData.get(userServerKey);
       if (data) {
         const duration = Math.floor((Date.now() - data.start) / 1000); // seconds
-        const hours = Math.floor(duration / 3600);
-        const minutes = Math.floor((duration % 3600) / 60);
+
         try {
-          await updateVCActivity(db, userId, serverId, hours, minutes);
+          await db.updateVCTime(userId, serverId, duration);
         } catch (error) {
           console.error(`[VC Tracking] Error updating on channel switch for <@${userId}> in <@${serverId}>:`, error);
         }
@@ -129,22 +132,3 @@ module.exports = (client, db) => {
     }
   });
 };
-
-async function updateVCActivity(db, userId, serverId, hours, minutes) {
-  // Convert excess minutes into hours before updating
-  const extraHours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  const totalHours = hours + extraHours;
-
-  const query = `
-    INSERT INTO vc_activity (user_id, server_id, hours, minutes) 
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT (user_id, server_id) 
-    DO UPDATE SET 
-      minutes = (minutes + ?) % 60,
-      hours = hours + ? + CAST((minutes + ?) / 60 AS INTEGER)
-  `;
-
-  await db.run(query, [userId, serverId, totalHours, remainingMinutes, remainingMinutes, totalHours, remainingMinutes]);
-}
-

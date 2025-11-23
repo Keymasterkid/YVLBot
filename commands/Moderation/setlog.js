@@ -12,15 +12,15 @@ module.exports = {
         }
 
         const channel = message.mentions.channels.first();
-        
+
         try {
             const success = await db.updateLogChannel(message.guild.id, channel.id);
-            
+
             const embed = new EmbedBuilder()
                 .setColor(success ? '#00FF00' : '#FF0000')
                 .setTitle(success ? 'Log Channel Set' : 'Error Setting Log Channel')
-                .setDescription(success 
-                    ? `Log channel has been set to ${channel}`
+                .setDescription(success
+                    ? `Log channel has been set to ${channel} `
                     : 'Failed to set the log channel. Please try again.'
                 )
                 .setTimestamp();
@@ -33,12 +33,12 @@ module.exports = {
                     message.guild.id,
                     'SYSTEM',
                     'LOG_CHANNEL_SET',
-                    `Set log channel to ${channel.name}`
+                    `Set log channel to ${channel.name} `
                 );
             }
         } catch (error) {
             console.error('Error in setlog command:', error);
-            
+
             const embed = new EmbedBuilder()
                 .setColor('#FF0000')
                 .setTitle('Database Error')

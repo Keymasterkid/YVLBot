@@ -28,7 +28,7 @@ module.exports = {
             embed.setDescription(warningList);
         }
 
-        embed.setFooter({ 
+        embed.setFooter({
             text: `Total Warnings: ${warnings.length}`,
             iconURL: message.author.displayAvatarURL()
         });

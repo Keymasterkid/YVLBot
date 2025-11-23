@@ -31,7 +31,7 @@ module.exports = {
     permissions: ['Administrator'],
     async execute(message, args) {
         console.log('Executing nukeprotection command with args:', args);
-        
+
         // Check if user has administrator permissions
         if (!message.member.permissions.has('Administrator')) {
             console.log('User lacks Administrator permission');
@@ -60,41 +60,46 @@ module.exports = {
                     .setDescription('Current protection status and settings for this server.')
                     .addFields(
                         { name: 'Status', value: isEnabled ? 'Enabled' : 'Disabled', inline: true },
-                        { name: 'Protected Actions', value: 
-                            '• Mass role creation/deletion\n' +
-                            '• Mass channel creation/deletion\n' +
-                            '• Mass emoji creation/deletion\n' +
-                            '• Mass webhook creation\n' +
-                            '• Mass bans/kicks\n' +
-                            '• Spam protection\n' +
-                            '• Slow nuke detection'
+                        {
+                            name: 'Protected Actions', value:
+                                '• Mass role creation/deletion\n' +
+                                '• Mass channel creation/deletion\n' +
+                                '• Mass emoji creation/deletion\n' +
+                                '• Mass webhook creation\n' +
+                                '• Mass bans/kicks\n' +
+                                '• Spam protection\n' +
+                                '• Slow nuke detection'
                         }
                     )
                     .addFields(
-                        { name: 'Action Limits', value: 
-                            `• Role Creation: ${settings.role_creation_limit}\n` +
-                            `• Role Deletion: ${settings.role_deletion_limit}\n` +
-                            `• Channel Creation: ${settings.channel_creation_limit}\n` +
-                            `• Channel Deletion: ${settings.channel_deletion_limit}\n` +
-                            `• Emoji Creation: ${settings.emoji_creation_limit}\n` +
-                            `• Emoji Deletion: ${settings.emoji_deletion_limit}\n` +
-                            `• Webhook Creation: ${settings.webhook_creation_limit}\n` +
-                            `• Ban Limit: ${settings.ban_limit}\n` +
-                            `• Kick Limit: ${settings.kick_limit}`
+                        {
+                            name: 'Action Limits', value:
+                                `• Role Creation: ${settings.role_creation_limit}\n` +
+                                `• Role Deletion: ${settings.role_deletion_limit}\n` +
+                                `• Channel Creation: ${settings.channel_creation_limit}\n` +
+                                `• Channel Deletion: ${settings.channel_deletion_limit}\n` +
+                                `• Emoji Creation: ${settings.emoji_creation_limit}\n` +
+                                `• Emoji Deletion: ${settings.emoji_deletion_limit}\n` +
+                                `• Webhook Creation: ${settings.webhook_creation_limit}\n` +
+                                `• Ban Limit: ${settings.ban_limit}\n` +
+                                `• Kick Limit: ${settings.kick_limit}`
                         },
-                        { name: 'Spam Protection', value: 
-                            `• Message Count: ${settings.spam_message_count}\n` +
-                            `• Channel Count: ${settings.spam_channel_count}\n` +
-                            `• Time Window: ${settings.spam_time_window/1000}s\n` +
-                            `• Similarity Threshold: ${settings.spam_similarity_threshold*100}%`
+                        {
+                            name: 'Spam Protection', value:
+                                `• Message Count: ${settings.spam_message_count}\n` +
+                                `• Channel Count: ${settings.spam_channel_count}\n` +
+                                `• Time Window: ${settings.spam_time_window / 1000}s\n` +
+                                `• Similarity Threshold: ${settings.spam_similarity_threshold * 100}%`
                         },
-                        { name: 'Slow Nuke Detection', value: 
-                            `• Time Window: ${settings.slow_nuke_time_window/3600000}h\n` +
-                            `• Action Threshold: ${settings.slow_nuke_action_threshold}\n` +
-                            `• Bot Only: ${settings.slow_nuke_bot_only ? 'Yes' : 'No'}`
+                        {
+                            name: 'Slow Nuke Detection', value:
+                                `• Time Window: ${settings.slow_nuke_time_window / 3600000}h\n` +
+                                `• Action Threshold: ${settings.slow_nuke_action_threshold}\n` +
+                                `• Bot Only: ${settings.slow_nuke_bot_only ? 'Yes' : 'No'}`
                         },
-                        { name: 'Alert Settings', value: 
-                            `• Alert Channel: ${settings.alert_channel ? `<#${settings.alert_channel}>` : 'Not set'}`
+                        {
+                            name: 'Alert Settings', value:
+                                `• Alert Channel: ${settings.alert_channel ? `<#${settings.alert_channel}>` : 'Not set'}`
                         }
                     )
                     .setFooter({ text: 'Use !nukeprotection settings to configure' })
@@ -117,21 +122,21 @@ module.exports = {
                             .setStyle(ButtonStyle.Primary)
                     );
 
-                const settingsMessage = await message.reply({ 
+                const settingsMessage = await message.reply({
                     embeds: [embed],
                     components: [row]
                 });
 
                 // Create a collector for the buttons
-                const collector = settingsMessage.createMessageComponentCollector({ 
+                const collector = settingsMessage.createMessageComponentCollector({
                     time: 300000 // 5 minutes
                 });
 
                 collector.on('collect', async (interaction) => {
                     if (!interaction.member.permissions.has('Administrator')) {
-                        return interaction.reply({ 
+                        return interaction.reply({
                             content: 'You need Administrator permissions to use these buttons.',
-                            ephemeral: true 
+                            ephemeral: true
                         });
                     }
 
@@ -139,16 +144,16 @@ module.exports = {
                         switch (interaction.customId) {
                             case 'enable_protection':
                                 await nukeProtection.enable(message.guild.id);
-                                await interaction.reply({ 
+                                await interaction.reply({
                                     content: '✅ Nuke protection has been enabled for this server.',
-                                    ephemeral: true 
+                                    ephemeral: true
                                 });
                                 break;
                             case 'disable_protection':
                                 await nukeProtection.disable(message.guild.id);
-                                await interaction.reply({ 
+                                await interaction.reply({
                                     content: '✅ Nuke protection has been disabled for this server.',
-                                    ephemeral: true 
+                                    ephemeral: true
                                 });
                                 break;
                             case 'configure_alerts':
@@ -194,8 +199,8 @@ module.exports = {
                                             { name: 'Status', value: isEnabledNow ? 'Enabled' : 'Disabled', inline: true },
                                             { name: 'Protected Actions', value: '• Mass role creation/deletion\n• Mass channel creation/deletion\n• Mass emoji creation/deletion\n• Mass webhook creation\n• Mass bans/kicks\n• Spam protection\n• Slow nuke detection' },
                                             { name: 'Action Limits', value: `• Role Creation: ${refreshed.role_creation_limit}\n• Role Deletion: ${refreshed.role_deletion_limit}\n• Channel Creation: ${refreshed.channel_creation_limit}\n• Channel Deletion: ${refreshed.channel_deletion_limit}\n• Emoji Creation: ${refreshed.emoji_creation_limit}\n• Emoji Deletion: ${refreshed.emoji_deletion_limit}\n• Webhook Creation: ${refreshed.webhook_creation_limit}\n• Ban Limit: ${refreshed.ban_limit}\n• Kick Limit: ${refreshed.kick_limit}` },
-                                            { name: 'Spam Protection', value: `• Message Count: ${refreshed.spam_message_count}\n• Channel Count: ${refreshed.spam_channel_count}\n• Time Window: ${refreshed.spam_time_window/1000}s\n• Similarity Threshold: ${refreshed.spam_similarity_threshold*100}%` },
-                                            { name: 'Slow Nuke Detection', value: `• Time Window: ${refreshed.slow_nuke_time_window/3600000}h\n• Action Threshold: ${refreshed.slow_nuke_action_threshold}\n• Bot Only: ${refreshed.slow_nuke_bot_only ? 'Yes' : 'No'}` },
+                                            { name: 'Spam Protection', value: `• Message Count: ${refreshed.spam_message_count}\n• Channel Count: ${refreshed.spam_channel_count}\n• Time Window: ${refreshed.spam_time_window / 1000}s\n• Similarity Threshold: ${refreshed.spam_similarity_threshold * 100}%` },
+                                            { name: 'Slow Nuke Detection', value: `• Time Window: ${refreshed.slow_nuke_time_window / 3600000}h\n• Action Threshold: ${refreshed.slow_nuke_action_threshold}\n• Bot Only: ${refreshed.slow_nuke_bot_only ? 'Yes' : 'No'}` },
                                             { name: 'Alert Settings', value: `• Alert Channel: ${refreshed.alert_channel ? `<#${refreshed.alert_channel}>` : 'Not set'}` }
                                         );
                                     await settingsMessage.edit({ embeds: [updatedEmbed] });
@@ -207,9 +212,9 @@ module.exports = {
                         }
                     } catch (error) {
                         console.error('Error handling button interaction:', error);
-                        await interaction.reply({ 
+                        await interaction.reply({
                             content: '❌ An error occurred while processing your action.',
-                            ephemeral: true 
+                            ephemeral: true
                         });
                     }
                 });
@@ -304,27 +309,30 @@ module.exports = {
                         .setTitle('Nuke Protection Settings')
                         .setDescription('Available settings to configure:')
                         .addFields(
-                            { name: 'Action Limits', value: 
-                                '• rolecreation <number> - Set role creation limit\n' +
-                                '• roledeletion <number> - Set role deletion limit\n' +
-                                '• channelcreation <number> - Set channel creation limit\n' +
-                                '• channeldeletion <number> - Set channel deletion limit\n' +
-                                '• emojicreation <number> - Set emoji creation limit\n' +
-                                '• emojideletion <number> - Set emoji deletion limit\n' +
-                                '• webhookcreation <number> - Set webhook creation limit\n' +
-                                '• banlimit <number> - Set ban limit\n' +
-                                '• kicklimit <number> - Set kick limit'
+                            {
+                                name: 'Action Limits', value:
+                                    '• rolecreation <number> - Set role creation limit\n' +
+                                    '• roledeletion <number> - Set role deletion limit\n' +
+                                    '• channelcreation <number> - Set channel creation limit\n' +
+                                    '• channeldeletion <number> - Set channel deletion limit\n' +
+                                    '• emojicreation <number> - Set emoji creation limit\n' +
+                                    '• emojideletion <number> - Set emoji deletion limit\n' +
+                                    '• webhookcreation <number> - Set webhook creation limit\n' +
+                                    '• banlimit <number> - Set ban limit\n' +
+                                    '• kicklimit <number> - Set kick limit'
                             },
-                            { name: 'Spam Protection', value: 
-                                '• messagecount <number> - Set number of identical messages\n' +
-                                '• channelcount <number> - Set number of different channels\n' +
-                                '• timewindow <seconds> - Set time window in seconds\n' +
-                                '• similarity <percentage> - Set similarity threshold'
+                            {
+                                name: 'Spam Protection', value:
+                                    '• messagecount <number> - Set number of identical messages\n' +
+                                    '• channelcount <number> - Set number of different channels\n' +
+                                    '• timewindow <seconds> - Set time window in seconds\n' +
+                                    '• similarity <percentage> - Set similarity threshold'
                             },
-                            { name: 'Slow Nuke Detection', value: 
-                                '• slowtimewindow <hours> - Set slow nuke time window\n' +
-                                '• slowthreshold <number> - Set slow nuke action threshold\n' +
-                                '• slowbotonly <yes/no> - Toggle bot-only slow nuke detection'
+                            {
+                                name: 'Slow Nuke Detection', value:
+                                    '• slowtimewindow <hours> - Set slow nuke time window\n' +
+                                    '• slowthreshold <number> - Set slow nuke action threshold\n' +
+                                    '• slowbotonly <yes/no> - Toggle bot-only slow nuke detection'
                             },
                             { name: 'Alert', value: '• alertchannel - Set alerts to this channel' }
                         )
@@ -342,7 +350,7 @@ module.exports = {
                 }
 
                 try {
-                        const settings = await nukeProtection.getSettings(message.guild.id);
+                    const settings = await nukeProtection.getSettings(message.guild.id);
                     if (!settings) {
                         return message.reply('Error loading settings. Please try again later.');
                     }
@@ -476,41 +484,43 @@ module.exports = {
                         .setTitle('Reset Confirmation')
                         .setDescription('Are you sure you want to reset all nuke protection settings to default values?')
                         .addFields(
-                            { name: 'Current Settings', value: 
-                                `• Role Creation: ${settings.role_creation_limit}\n` +
-                                `• Role Deletion: ${settings.role_deletion_limit}\n` +
-                                `• Channel Creation: ${settings.channel_creation_limit}\n` +
-                                `• Channel Deletion: ${settings.channel_deletion_limit}\n` +
-                                `• Emoji Creation: ${settings.emoji_creation_limit}\n` +
-                                `• Emoji Deletion: ${settings.emoji_deletion_limit}\n` +
-                                `• Webhook Creation: ${settings.webhook_creation_limit}\n` +
-                                `• Ban Limit: ${settings.ban_limit}\n` +
-                                `• Kick Limit: ${settings.kick_limit}`
+                            {
+                                name: 'Current Settings', value:
+                                    `• Role Creation: ${settings.role_creation_limit}\n` +
+                                    `• Role Deletion: ${settings.role_deletion_limit}\n` +
+                                    `• Channel Creation: ${settings.channel_creation_limit}\n` +
+                                    `• Channel Deletion: ${settings.channel_deletion_limit}\n` +
+                                    `• Emoji Creation: ${settings.emoji_creation_limit}\n` +
+                                    `• Emoji Deletion: ${settings.emoji_deletion_limit}\n` +
+                                    `• Webhook Creation: ${settings.webhook_creation_limit}\n` +
+                                    `• Ban Limit: ${settings.ban_limit}\n` +
+                                    `• Kick Limit: ${settings.kick_limit}`
                             },
-                            { name: 'Default Settings', value: 
-                                `• Role Creation: ${DEFAULT_SETTINGS.role_creation_limit}\n` +
-                                `• Role Deletion: ${DEFAULT_SETTINGS.role_deletion_limit}\n` +
-                                `• Channel Creation: ${DEFAULT_SETTINGS.channel_creation_limit}\n` +
-                                `• Channel Deletion: ${DEFAULT_SETTINGS.channel_deletion_limit}\n` +
-                                `• Emoji Creation: ${DEFAULT_SETTINGS.emoji_creation_limit}\n` +
-                                `• Emoji Deletion: ${DEFAULT_SETTINGS.emoji_deletion_limit}\n` +
-                                `• Webhook Creation: ${DEFAULT_SETTINGS.webhook_creation_limit}\n` +
-                                `• Ban Limit: ${DEFAULT_SETTINGS.ban_limit}\n` +
-                                `• Kick Limit: ${DEFAULT_SETTINGS.kick_limit}`
+                            {
+                                name: 'Default Settings', value:
+                                    `• Role Creation: ${DEFAULT_SETTINGS.role_creation_limit}\n` +
+                                    `• Role Deletion: ${DEFAULT_SETTINGS.role_deletion_limit}\n` +
+                                    `• Channel Creation: ${DEFAULT_SETTINGS.channel_creation_limit}\n` +
+                                    `• Channel Deletion: ${DEFAULT_SETTINGS.channel_deletion_limit}\n` +
+                                    `• Emoji Creation: ${DEFAULT_SETTINGS.emoji_creation_limit}\n` +
+                                    `• Emoji Deletion: ${DEFAULT_SETTINGS.emoji_deletion_limit}\n` +
+                                    `• Webhook Creation: ${DEFAULT_SETTINGS.webhook_creation_limit}\n` +
+                                    `• Ban Limit: ${DEFAULT_SETTINGS.ban_limit}\n` +
+                                    `• Kick Limit: ${DEFAULT_SETTINGS.kick_limit}`
                             }
                         )
                         .setFooter({ text: 'This action cannot be undone' })
                         .setTimestamp();
 
-                    const confirmationMessage = await message.reply({ 
-                        embeds: [embed], 
-                        components: [row] 
+                    const confirmationMessage = await message.reply({
+                        embeds: [embed],
+                        components: [row]
                     });
 
                     // Create a collector for the buttons
-                    const collector = confirmationMessage.createMessageComponentCollector({ 
+                    const collector = confirmationMessage.createMessageComponentCollector({
                         time: 30000, // 30 seconds timeout
-                        filter: i => i.user.id === message.author.id 
+                        filter: i => i.user.id === message.author.id
                     });
 
                     collector.on('collect', async (interaction) => {
@@ -524,35 +534,38 @@ module.exports = {
                                     .setTitle('Settings Reset')
                                     .setDescription('All nuke protection settings have been reset to default values.')
                                     .addFields(
-                                        { name: 'Default Action Limits', value: 
-                                            `• Role Creation: ${DB_DEFAULTS.role_creation_limit}\n` +
-                                            `• Role Deletion: ${DB_DEFAULTS.role_deletion_limit}\n` +
-                                            `• Channel Creation: ${DB_DEFAULTS.channel_creation_limit}\n` +
-                                            `• Channel Deletion: ${DB_DEFAULTS.channel_deletion_limit}\n` +
-                                            `• Emoji Creation: ${DB_DEFAULTS.emoji_creation_limit}\n` +
-                                            `• Emoji Deletion: ${DB_DEFAULTS.emoji_deletion_limit}\n` +
-                                            `• Webhook Creation: ${DB_DEFAULTS.webhook_creation_limit}\n` +
-                                            `• Ban Limit: ${DB_DEFAULTS.ban_limit}\n` +
-                                            `• Kick Limit: ${DB_DEFAULTS.kick_limit}`
+                                        {
+                                            name: 'Default Action Limits', value:
+                                                `• Role Creation: ${DB_DEFAULTS.role_creation_limit}\n` +
+                                                `• Role Deletion: ${DB_DEFAULTS.role_deletion_limit}\n` +
+                                                `• Channel Creation: ${DB_DEFAULTS.channel_creation_limit}\n` +
+                                                `• Channel Deletion: ${DB_DEFAULTS.channel_deletion_limit}\n` +
+                                                `• Emoji Creation: ${DB_DEFAULTS.emoji_creation_limit}\n` +
+                                                `• Emoji Deletion: ${DB_DEFAULTS.emoji_deletion_limit}\n` +
+                                                `• Webhook Creation: ${DB_DEFAULTS.webhook_creation_limit}\n` +
+                                                `• Ban Limit: ${DB_DEFAULTS.ban_limit}\n` +
+                                                `• Kick Limit: ${DB_DEFAULTS.kick_limit}`
                                         },
-                                        { name: 'Default Spam Protection', value: 
-                                            `• Message Count: ${DB_DEFAULTS.spam_message_count}\n` +
-                                            `• Channel Count: ${DB_DEFAULTS.spam_channel_count}\n` +
-                                            `• Time Window: ${DB_DEFAULTS.spam_time_window/1000}s\n` +
-                                            `• Similarity Threshold: ${DB_DEFAULTS.spam_similarity_threshold*100}%`
+                                        {
+                                            name: 'Default Spam Protection', value:
+                                                `• Message Count: ${DB_DEFAULTS.spam_message_count}\n` +
+                                                `• Channel Count: ${DB_DEFAULTS.spam_channel_count}\n` +
+                                                `• Time Window: ${DB_DEFAULTS.spam_time_window / 1000}s\n` +
+                                                `• Similarity Threshold: ${DB_DEFAULTS.spam_similarity_threshold * 100}%`
                                         },
-                                        { name: 'Default Slow Nuke Detection', value: 
-                                            `• Time Window: ${DB_DEFAULTS.slow_nuke_time_window/3600000}h\n` +
-                                            `• Action Threshold: ${DB_DEFAULTS.slow_nuke_action_threshold}\n` +
-                                            `• Bot Only: ${DB_DEFAULTS.slow_nuke_bot_only ? 'Yes' : 'No'}`
+                                        {
+                                            name: 'Default Slow Nuke Detection', value:
+                                                `• Time Window: ${DB_DEFAULTS.slow_nuke_time_window / 3600000}h\n` +
+                                                `• Action Threshold: ${DB_DEFAULTS.slow_nuke_action_threshold}\n` +
+                                                `• Bot Only: ${DB_DEFAULTS.slow_nuke_bot_only ? 'Yes' : 'No'}`
                                         }
                                     )
                                     .setFooter({ text: 'Nuke Protection Settings' })
                                     .setTimestamp();
 
-                                await interaction.update({ 
+                                await interaction.update({
                                     embeds: [successEmbed],
-                                    components: [] 
+                                    components: []
                                 });
 
                                 // Log the action
@@ -572,9 +585,9 @@ module.exports = {
                                     .setFooter({ text: 'Server Protection' })
                                     .setTimestamp();
 
-                                await interaction.update({ 
+                                await interaction.update({
                                     embeds: [errorEmbed],
-                                    components: [] 
+                                    components: []
                                 });
                             }
                         } else if (interaction.customId === 'cancel_reset') {
@@ -585,9 +598,9 @@ module.exports = {
                                 .setFooter({ text: 'Nuke Protection Settings' })
                                 .setTimestamp();
 
-                            await interaction.update({ 
+                            await interaction.update({
                                 embeds: [cancelEmbed],
-                                components: [] 
+                                components: []
                             });
                         }
                     });
@@ -601,9 +614,9 @@ module.exports = {
                                 .setFooter({ text: 'Nuke Protection Settings' })
                                 .setTimestamp();
 
-                            confirmationMessage.edit({ 
+                            confirmationMessage.edit({
                                 embeds: [timeoutEmbed],
-                                components: [] 
+                                components: []
                             }).catch(console.error);
                         }
                     });

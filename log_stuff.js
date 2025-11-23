@@ -93,30 +93,6 @@ module.exports = async (client, db) => {
     logEmbed(guild, embed);
   }
 
-  async function fetchAuditLogEntry(guild, auditType, targetId = null) {
-    try {
-      // Guard against missing permission to view audit logs
-      const me = guild.members?.me;
-      const hasPerm = me?.permissions?.has?.('ViewAuditLog');
-      if (!hasPerm) return null;
-
-      const auditLogs = await guild.fetchAuditLogs({
-        type: auditType,
-        limit: 10 // Increased limit for better accuracy
-      });
-
-      // If targetId is provided, find the entry for that target
-      if (targetId) {
-        return auditLogs.entries.find(entry => entry.target?.id === targetId);
-      }
-
-      return auditLogs.entries.first();
-    } catch (error) {
-      console.error(`[LogSystem] Failed to fetch audit logs for ${auditType}:`, error);
-      return null;
-    }
-  }
-
   // Try to find the most appropriate audit log entry for an event
   async function findMatchingAuditEntry(guild, auditType, opts = {}) {
     const { targetId = null, channelId = null, eventTimeMs = Date.now() } = opts;
@@ -139,7 +115,7 @@ module.exports = async (client, db) => {
         return true;
       });
 
-      return candidates[0] || entries[0] || null;
+      return candidates[0] || null;
     } catch (error) {
       console.error(`[LogSystem] Failed to find matching audit entry for ${auditType}:`, error);
       return null;

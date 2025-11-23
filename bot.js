@@ -7,8 +7,6 @@ const db = require('./utils/database');
 const commandHandler = require('./utils/commandHandler');
 const VCTracking = require('./VC_tracking');
 const logStuff = require('./log_stuff');
-const MemberJoin = require('./events/Memberjoin.js');
-const starboardEvent = require('./events/starboardEvent.js');
 const nukeProtection = require('./utils/nukeProtection');
 
 // Create a client instance with the correct intents
@@ -156,11 +154,9 @@ function setupEventListeners() {
       await logStuff(client, db);
       console.log('✅ Logging system initialized');
 
-      MemberJoin(client, db);
-      console.log('✅ Member join events initialized');
-
-      starboardEvent(client, db);
-      console.log('✅ Starboard events initialized');
+      // Load all events from the events directory
+      require('./events/events')(client, db);
+      console.log('✅ Events loaded');
 
       console.log('✅ All modules initialized successfully');
     } catch (error) {
@@ -251,7 +247,7 @@ async function handleXpGain(message) {
       const timestamps = client.cooldowns.get('xp');
       if (timestamps.has(userId)) {
         const lastMessageTime = timestamps.get(userId);
-        const cooldown = 60 * 1000; // 1 minute cooldown
+        const cooldown = config.cooldowns.xp;
 
         if (Date.now() - lastMessageTime < cooldown) {
           return;
@@ -266,12 +262,12 @@ async function handleXpGain(message) {
     client.cooldowns.get('xp').set(userId, Date.now());
 
     // Calculate XP gain
-    const xpGain = Math.floor(Math.random() * (15 - 5 + 1)) + 5;
+    const xpGain = Math.floor(Math.random() * (config.xp.max - config.xp.min + 1)) + config.xp.min;
     await db.updateUserXP(userId, serverId, xpGain);
 
     // Check for level up
     const userLevel = await db.getUserLevel(userId, serverId);
-    const xpToNextLevel = userLevel.level * 100;
+    const xpToNextLevel = userLevel.level * config.xp.levelMultiplier;
 
     if (userLevel.xp >= xpToNextLevel) {
       const newLevel = userLevel.level + 1;
