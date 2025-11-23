@@ -74,7 +74,7 @@ class Queue {
 
     try {
       console.log('Attempting to play song:', song.url);
-      
+
       const stream = await ytdl(song.url, {
         filter: 'audioonly',
         quality: 'highestaudio',
@@ -97,7 +97,7 @@ class Queue {
           selfDeaf: false,
           selfMute: false,
         });
-        
+
         // Set up connection error handling
         connection.on(VoiceConnectionStatus.Disconnected, async () => {
           try {
@@ -124,11 +124,11 @@ class Queue {
       this.connection = connection;
 
       console.log('Creating audio resource');
-      const resource = createAudioResource(stream, { 
+      const resource = createAudioResource(stream, {
         inlineVolume: true,
         inputType: 'opus'
       });
-      
+
       resource.volume.setVolume(this.volume);
 
       // Set up error handling for the player
@@ -265,7 +265,7 @@ class Queue {
           await interaction.reply({
             content: '❌ An error occurred while processing your request.',
             ephemeral: true
-          }).catch(() => {});
+          }).catch(() => { });
         }
       });
 
@@ -274,7 +274,7 @@ class Queue {
 
     } catch (error) {
       console.error('Error playing song:', error);
-      
+
       let errorMessage = '❌ Error playing song: ';
       if (error.message.includes('Video unavailable')) {
         errorMessage += 'This video is unavailable or private.';
@@ -287,7 +287,7 @@ class Queue {
       } else {
         errorMessage += error.message;
       }
-      
+
       message.channel.send({
         embeds: [
           new EmbedBuilder()
@@ -306,7 +306,7 @@ module.exports = {
   usage: '!play <YouTube URL>',
   permissions: [PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
   queues, // Export the queues for other commands to use
-  async execute(message, args) {
+  async execute(message, args, client, prefix, db) {
     // Check if user is in a voice channel
     const voiceChannel = message.member.voice.channel;
     if (!voiceChannel) {
@@ -320,7 +320,7 @@ module.exports = {
     }
 
     // Check if bot has permission to join and speak
-    const permissions = voiceChannel.permissionsFor(message.client.user);
+    const permissions = voiceChannel.permissionsFor(client.user);
     if (!permissions.has(PermissionFlagsBits.Connect) || !permissions.has(PermissionFlagsBits.Speak)) {
       return message.reply({
         embeds: [

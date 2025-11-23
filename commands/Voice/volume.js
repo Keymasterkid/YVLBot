@@ -35,7 +35,7 @@ module.exports = {
     // Get the queue for this guild
     const { queues } = require('./play');
     const queue = queues.get(message.guild.id);
-    
+
     if (!queue || !queue.playing) {
       return message.reply({
         embeds: [
@@ -50,7 +50,7 @@ module.exports = {
     if (!args.length) {
       const currentVolume = Math.round(queue.volume * 100);
       const volumeBar = '🔊 ' + '█'.repeat(Math.floor(currentVolume / 10)) + '░'.repeat(10 - Math.floor(currentVolume / 10)) + ` ${currentVolume}%`;
-      
+
       return message.reply({
         embeds: [
           new EmbedBuilder()
@@ -64,7 +64,7 @@ module.exports = {
 
     // Parse volume argument
     const volume = parseInt(args[0]);
-    
+
     if (isNaN(volume) || volume < 0 || volume > 100) {
       return message.reply({
         embeds: [
@@ -76,8 +76,8 @@ module.exports = {
     }
 
     // Check if user is the one who requested the current song or has manage messages permission
-    const hasPermission = message.member.permissions.has(PermissionFlagsBits.ManageMessages) || 
-                         (queue.currentSong && queue.currentSong.requestedBy.id === message.author.id);
+    const hasPermission = message.member.permissions.has(PermissionFlagsBits.ManageMessages) ||
+      (queue.currentSong && queue.currentSong.requestedBy.id === message.author.id);
 
     if (!hasPermission) {
       return message.reply({
@@ -93,7 +93,7 @@ module.exports = {
       // Set the volume (convert from 0-100 to 0-1)
       const newVolume = volume / 100;
       queue.volume = newVolume;
-      
+
       // Update the current audio resource volume if it exists
       if (queue.player.state.status === AudioPlayerStatus.Playing) {
         const resource = queue.player.state.resource;
@@ -103,7 +103,7 @@ module.exports = {
       }
 
       const volumeBar = '🔊 ' + '█'.repeat(Math.floor(volume / 10)) + '░'.repeat(10 - Math.floor(volume / 10)) + ` ${volume}%`;
-      
+
       message.reply({
         embeds: [
           new EmbedBuilder()

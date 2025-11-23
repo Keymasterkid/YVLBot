@@ -33,7 +33,7 @@ module.exports = {
     // Get the queue for this guild
     const { queues } = require('./play');
     const queue = queues.get(message.guild.id);
-    
+
     if (!queue || !queue.playing) {
       return message.reply({
         embeds: [
@@ -45,8 +45,8 @@ module.exports = {
     }
 
     // Check if user is the one who requested the current song or has manage messages permission
-    const hasPermission = message.member.permissions.has(PermissionFlagsBits.ManageMessages) || 
-                         (queue.currentSong && queue.currentSong.requestedBy.id === message.author.id);
+    const hasPermission = message.member.permissions.has(PermissionFlagsBits.ManageMessages) ||
+      (queue.currentSong && queue.currentSong.requestedBy.id === message.author.id);
 
     if (!hasPermission) {
       return message.reply({
@@ -61,20 +61,20 @@ module.exports = {
     try {
       // Clear the queue
       queue.songs = [];
-      
+
       // Stop the player
       queue.player.stop();
-      
+
       // Destroy the connection
       if (queue.connection) {
         queue.connection.destroy();
       }
-      
+
       // Stop the collector
       if (queue.collector) {
         queue.collector.stop();
       }
-      
+
       // Clear the control message
       if (queue.controlMessage) {
         try {
@@ -83,13 +83,13 @@ module.exports = {
           console.error('Error clearing control message:', error);
         }
       }
-      
+
       // Set playing to false
       queue.playing = false;
-      
+
       // Remove the queue from the global map
       queues.delete(message.guild.id);
-      
+
       message.reply({
         embeds: [
           new EmbedBuilder()

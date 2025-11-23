@@ -4,7 +4,7 @@ module.exports = {
     name: 'pay',
     description: 'Transfer money to another user',
     usage: '<user> <amount>',
-    async execute(message, args, client, db) {
+    async execute(message, args, client, prefix, db) {
         const target = message.mentions.users.first();
         if (!target) return message.reply('Please mention a user to pay.');
 

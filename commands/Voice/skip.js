@@ -33,7 +33,7 @@ module.exports = {
     // Get the queue for this guild
     const { queues } = require('./play');
     const queue = queues.get(message.guild.id);
-    
+
     if (!queue || !queue.playing) {
       return message.reply({
         embeds: [
@@ -45,8 +45,8 @@ module.exports = {
     }
 
     // Check if user is the one who requested the current song or has manage messages permission
-    const hasPermission = message.member.permissions.has(PermissionFlagsBits.ManageMessages) || 
-                         (queue.currentSong && queue.currentSong.requestedBy.id === message.author.id);
+    const hasPermission = message.member.permissions.has(PermissionFlagsBits.ManageMessages) ||
+      (queue.currentSong && queue.currentSong.requestedBy.id === message.author.id);
 
     if (!hasPermission) {
       return message.reply({
@@ -61,7 +61,7 @@ module.exports = {
     try {
       // Stop the current song to trigger playNext
       queue.player.stop();
-      
+
       message.reply({
         embeds: [
           new EmbedBuilder()

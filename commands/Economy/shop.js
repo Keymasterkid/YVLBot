@@ -4,7 +4,7 @@ module.exports = {
     name: 'shop',
     description: 'View and buy items',
     usage: '[buy <item_id>]',
-    async execute(message, args, client, db) {
+    async execute(message, args, client, prefix, db) {
         if (args[0] === 'buy') {
             const itemId = parseInt(args[1]);
             if (isNaN(itemId)) return message.reply('Please provide a valid item ID.');

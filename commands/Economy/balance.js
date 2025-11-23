@@ -5,7 +5,7 @@ module.exports = {
     description: 'Check your wallet and bank balance',
     usage: '[user]',
     aliases: ['bal', 'money'],
-    async execute(message, args, client, db) {
+    async execute(message, args, client, prefix, db) {
         const target = message.mentions.users.first() || message.author;
         const economy = await db.getEconomy(target.id, message.guild.id);
 

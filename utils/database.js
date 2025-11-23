@@ -271,11 +271,11 @@ class DatabaseManager {
     async updateUserXP(userId, serverId, xp) {
         try {
             await this.run(`
-                INSERT INTO user_levels(user_id, server_id, xp, last_message_time) 
-                VALUES(?, ?, ?, ?)
+                INSERT INTO user_levels(user_id, server_id, xp, last_message_time)
+                    VALUES(?, ?, ?, ?)
                 ON CONFLICT(user_id, server_id) 
                 DO UPDATE SET xp = xp + ?, last_message_time = ?
-                    `, [userId, serverId, xp, Date.now(), xp, Date.now()]);
+                        `, [userId, serverId, xp, Date.now(), xp, Date.now()]);
         } catch (error) {
             console.error('Error updating user XP:', error);
             throw error;
@@ -288,7 +288,7 @@ class DatabaseManager {
                 SELECT level, xp 
                 FROM user_levels 
                 WHERE user_id = ? AND server_id = ?
-                    `, [userId, serverId]);
+                        `, [userId, serverId]);
 
             return result || { level: 1, xp: 0 };
         } catch (error) {
@@ -302,8 +302,8 @@ class DatabaseManager {
             await this.run(`
                 UPDATE user_levels 
                 SET level = ?
-                    WHERE user_id = ? AND server_id = ?
-                        `, [level, userId, serverId]);
+                        WHERE user_id = ? AND server_id = ?
+                            `, [level, userId, serverId]);
         } catch (error) {
             console.error('Error updating user level:', error);
             throw error;
@@ -317,8 +317,8 @@ class DatabaseManager {
                 FROM warnings w
                 LEFT JOIN users u ON w.moderator_id = u.id
                 WHERE w.user_id = ? AND w.server_id = ?
-                    ORDER BY w.timestamp DESC
-                    `, [userId, serverId]);
+                        ORDER BY w.timestamp DESC
+                            `, [userId, serverId]);
         } catch (error) {
             console.error('Error getting warnings:', error);
             throw error;
@@ -330,7 +330,7 @@ class DatabaseManager {
             await this.run(`
                 DELETE FROM warnings
                 WHERE user_id = ? AND server_id = ?
-                    `, [userId, serverId]);
+                        `, [userId, serverId]);
         } catch (error) {
             console.error('Error clearing warnings:', error);
             throw error;
@@ -341,8 +341,8 @@ class DatabaseManager {
         try {
             await this.run(`
                 INSERT INTO warnings(user_id, server_id, moderator_id, reason, timestamp)
-                VALUES(?, ?, ?, ?, ?)
-                `, [userId, serverId, moderatorId, reason, Date.now()]);
+                    VALUES(?, ?, ?, ?, ?)
+                        `, [userId, serverId, moderatorId, reason, Date.now()]);
         } catch (error) {
             console.error('Error adding warning:', error);
             throw error;
@@ -353,7 +353,7 @@ class DatabaseManager {
         try {
             await this.run(`
                 INSERT INTO moderation_logs(user_id, server_id, moderator_id, action, reason, timestamp)
-                VALUES(?, ?, ?, ?, ?, ?)
+                    VALUES(?, ?, ?, ?, ?, ?)
                 `, [userId, serverId, moderatorId, action, reason, Date.now()]);
         } catch (error) {
             console.error('Error logging moderation action:', error);
@@ -410,6 +410,50 @@ class DatabaseManager {
         } catch (error) {
             console.error('Error inserting default commands:', error);
             throw error;
+        }
+    }
+
+    async addUserIfNotExists(userId, username) {
+        try {
+            const user = await this.get('SELECT id FROM users WHERE id = ?', [userId]);
+            if (!user) {
+                await this.run('INSERT INTO users (id, username) VALUES (?, ?)', [userId, username]);
+            }
+        } catch (error) {
+            console.error('Error adding user:', error);
+            throw error;
+        }
+    }
+
+    async addServerIfNotExists(serverId, ownerId, serverName) {
+        try {
+            const server = await this.get('SELECT server_id FROM servers WHERE server_id = ?', [serverId]);
+            if (!server) {
+                await this.run('INSERT INTO servers (server_id, owner_id, server_name) VALUES (?, ?, ?)',
+                    [serverId, ownerId, serverName]);
+
+                // Add default shop items
+                await this.addDefaultShopItems(serverId);
+            }
+        } catch (error) {
+            console.error('Error adding server:', error);
+            throw error;
+        }
+    }
+
+    async addDefaultShopItems(serverId) {
+        const defaultItems = [
+            { name: 'Cookie', description: 'A delicious cookie', price: 10, role_id: null },
+            { name: 'Ring', description: 'A shiny ring for marriage', price: 5000, role_id: null },
+            { name: 'VIP', description: 'VIP Role', price: 10000, role_id: null }
+        ];
+
+        try {
+            for (const item of defaultItems) {
+                await this.addShopItem(serverId, item.name, item.description, item.price, item.role_id);
+            }
+        } catch (error) {
+            console.error('Error adding default shop items:', error);
         }
     }
 
@@ -543,11 +587,11 @@ class DatabaseManager {
         try {
             const columns = Object.keys(settings).map(key => {
                 // Convert camelCase to snake_case for database columns
-                return key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+                return key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()} `);
             });
             const values = Object.values(settings);
 
-            const setClause = columns.map(col => `${col} = ? `).join(', ');
+            const setClause = columns.map(col => `${col} = ?`).join(', ');
 
             await this.run(
                 `UPDATE nuke_protection_settings SET ${setClause} WHERE server_id = ? `,
@@ -589,11 +633,11 @@ class DatabaseManager {
     async updateBalance(userId, serverId, amount, type = 'wallet') {
         try {
             await this.run(`
-                INSERT INTO economy(user_id, server_id, ${type}) 
-                VALUES(?, ?, ?)
+                INSERT INTO economy(user_id, server_id, ${type})
+                    VALUES(?, ?, ?)
                 ON CONFLICT(user_id, server_id) 
                 DO UPDATE SET ${type} = ${type} + ?
-                    `, [userId, serverId, amount, amount]);
+                        `, [userId, serverId, amount, amount]);
         } catch (error) {
             console.error('Error updating balance:', error);
             throw error;
@@ -603,11 +647,11 @@ class DatabaseManager {
     async updateDaily(userId, serverId) {
         try {
             await this.run(`
-                INSERT INTO economy(user_id, server_id, last_daily) 
-                VALUES(?, ?, ?)
+                INSERT INTO economy(user_id, server_id, last_daily)
+                    VALUES(?, ?, ?)
                 ON CONFLICT(user_id, server_id) 
                 DO UPDATE SET last_daily = ?
-                    `, [userId, serverId, Date.now(), Date.now()]);
+                        `, [userId, serverId, Date.now(), Date.now()]);
         } catch (error) {
             console.error('Error updating daily:', error);
             throw error;
@@ -617,11 +661,11 @@ class DatabaseManager {
     async updateWork(userId, serverId) {
         try {
             await this.run(`
-                INSERT INTO economy(user_id, server_id, last_work) 
-                VALUES(?, ?, ?)
+                INSERT INTO economy(user_id, server_id, last_work)
+                    VALUES(?, ?, ?)
                 ON CONFLICT(user_id, server_id) 
                 DO UPDATE SET last_work = ?
-                    `, [userId, serverId, Date.now(), Date.now()]);
+                        `, [userId, serverId, Date.now(), Date.now()]);
         } catch (error) {
             console.error('Error updating work:', error);
             throw error;
@@ -635,9 +679,9 @@ class DatabaseManager {
                 FROM economy e
                 LEFT JOIN users u ON e.user_id = u.id
                 WHERE e.server_id = ?
-                    ORDER BY(e.wallet + e.bank) DESC
-                LIMIT ?
-                    `, [serverId, limit]);
+                        ORDER BY(e.wallet + e.bank) DESC
+                    LIMIT ?
+                        `, [serverId, limit]);
         } catch (error) {
             console.error('Error getting leaderboard:', error);
             throw error;
@@ -669,10 +713,205 @@ class DatabaseManager {
 
             await this.run(`
                 INSERT INTO family(user_id, server_id, partner_id, children, parents, marriage_date)
-                VALUES(?, ?, ?, ?, ?, ?)
+                    VALUES(?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id, server_id)
                 DO UPDATE SET partner_id = ?, children = ?, parents = ?, marriage_date = ?
-                    `, [
+                        `, [
+                userId, serverId,
+                newData.partner_id, JSON.stringify(newData.children), JSON.stringify(newData.parents), newData.marriage_date,
+                newData.partner_id, JSON.stringify(newData.children), JSON.stringify(newData.parents), newData.marriage_date
+            ]);
+        } catch (error) {
+            console.error('Error updating family:', error);
+            throw error;
+        }
+    }
+
+    // Shop Methods
+    async getShopItems(serverId) {
+        try {
+            return await this.all('SELECT * FROM shop_items WHERE server_id = ?', [serverId]);
+        } catch (error) {
+            console.error('Error getting shop items:', error);
+            throw error;
+        }
+    }
+
+    async addShopItem(serverId, name, description, price, roleId) {
+        try {
+            await this.run(
+                'INSERT INTO shop_items (server_id, name, description, price, role_id) VALUES (?, ?, ?, ?, ?)',
+                [serverId, name, description, price, roleId]
+            );
+        } catch (error) {
+            console.error('Error adding shop item:', error);
+            throw error;
+        }
+    }
+
+    async getShopItem(serverId, itemId) {
+        try {
+            return await this.get('SELECT * FROM shop_items WHERE server_id = ? AND id = ?', [serverId, itemId]);
+            await this.run(
+                'UPDATE servers SET log_channel = ? WHERE server_id = ?',
+                [channelId, serverId]
+            );
+            return true;
+        } catch (error) {
+            console.error('Error updating log channel:', error);
+            return false;
+        }
+    }
+
+    async getLogChannel(serverId) {
+        try {
+            console.log('Getting log channel for server:', serverId);
+            const result = await this.get(
+                'SELECT log_channel FROM servers WHERE server_id = ?',
+                [serverId]
+            );
+            console.log('Retrieved log channel result:', result);
+            return result?.log_channel || null;
+        } catch (error) {
+            console.error('Error getting log channel:', error);
+            return null;
+        }
+    }
+
+    async updateNukeProtectionSettings(serverId, settings) {
+        try {
+            const columns = Object.keys(settings).map(key => {
+                // Convert camelCase to snake_case for database columns
+                return key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()} `);
+            });
+            const values = Object.values(settings);
+
+            const setClause = columns.map(col => `${col} = ?`).join(', ');
+
+            await this.run(
+                `UPDATE nuke_protection_settings SET ${setClause} WHERE server_id = ? `,
+                [...values, serverId]
+            );
+            return true;
+        } catch (error) {
+            console.error('Error updating nuke protection settings:', error);
+            return false;
+        }
+    }
+
+    async getNukeProtectionSettings(serverId) {
+        try {
+            return await this.get(
+                'SELECT * FROM nuke_protection_settings WHERE server_id = ?',
+                [serverId]
+            );
+        } catch (error) {
+            console.error('Error getting nuke protection settings:', error);
+            return null;
+        }
+    }
+
+    // Economy Methods
+    async getEconomy(userId, serverId) {
+        try {
+            const result = await this.get(
+                'SELECT * FROM economy WHERE user_id = ? AND server_id = ?',
+                [userId, serverId]
+            );
+            return result || { wallet: 0, bank: 0, last_daily: 0, last_work: 0 };
+        } catch (error) {
+            console.error('Error getting economy:', error);
+            throw error;
+        }
+    }
+
+    async updateBalance(userId, serverId, amount, type = 'wallet') {
+        try {
+            await this.run(`
+                INSERT INTO economy(user_id, server_id, ${type})
+                    VALUES(?, ?, ?)
+                ON CONFLICT(user_id, server_id) 
+                DO UPDATE SET ${type} = ${type} + ?
+                        `, [userId, serverId, amount, amount]);
+        } catch (error) {
+            console.error('Error updating balance:', error);
+            throw error;
+        }
+    }
+
+    async updateDaily(userId, serverId) {
+        try {
+            await this.run(`
+                INSERT INTO economy(user_id, server_id, last_daily)
+                    VALUES(?, ?, ?)
+                ON CONFLICT(user_id, server_id) 
+                DO UPDATE SET last_daily = ?
+                        `, [userId, serverId, Date.now(), Date.now()]);
+        } catch (error) {
+            console.error('Error updating daily:', error);
+            throw error;
+        }
+    }
+
+    async updateWork(userId, serverId) {
+        try {
+            await this.run(`
+                INSERT INTO economy(user_id, server_id, last_work)
+                    VALUES(?, ?, ?)
+                ON CONFLICT(user_id, server_id) 
+                DO UPDATE SET last_work = ?
+                        `, [userId, serverId, Date.now(), Date.now()]);
+        } catch (error) {
+            console.error('Error updating work:', error);
+            throw error;
+        }
+    }
+
+    async getLeaderboard(serverId, limit = 10) {
+        try {
+            return await this.all(`
+                SELECT e.*, u.username 
+                FROM economy e
+                LEFT JOIN users u ON e.user_id = u.id
+                WHERE e.server_id = ?
+                        ORDER BY(e.wallet + e.bank) DESC
+                    LIMIT ?
+                        `, [serverId, limit]);
+        } catch (error) {
+            console.error('Error getting leaderboard:', error);
+            throw error;
+        }
+    }
+
+    // Family Methods
+    async getFamily(userId, serverId) {
+        try {
+            const result = await this.get(
+                'SELECT * FROM family WHERE user_id = ? AND server_id = ?',
+                [userId, serverId]
+            );
+            if (result) {
+                result.children = JSON.parse(result.children || '[]');
+                result.parents = JSON.parse(result.parents || '[]');
+            }
+            return result || { partner_id: null, children: [], parents: [], marriage_date: null };
+        } catch (error) {
+            console.error('Error getting family:', error);
+            throw error;
+        }
+    }
+
+    async updateFamily(userId, serverId, data) {
+        try {
+            const current = await this.getFamily(userId, serverId);
+            const newData = { ...current, ...data };
+
+            await this.run(`
+                INSERT INTO family(user_id, server_id, partner_id, children, parents, marriage_date)
+                    VALUES(?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id, server_id)
+                DO UPDATE SET partner_id = ?, children = ?, parents = ?, marriage_date = ?
+                        `, [
                 userId, serverId,
                 newData.partner_id, JSON.stringify(newData.children), JSON.stringify(newData.parents), newData.marriage_date,
                 newData.partner_id, JSON.stringify(newData.children), JSON.stringify(newData.parents), newData.marriage_date
@@ -710,6 +949,31 @@ class DatabaseManager {
             return await this.get('SELECT * FROM shop_items WHERE server_id = ? AND id = ?', [serverId, itemId]);
         } catch (error) {
             console.error('Error getting shop item:', error);
+            throw error;
+        }
+    }
+    async updateRob(userId, serverId) {
+        try {
+            await this.run(`
+                UPDATE economy 
+                SET last_rob = ? 
+                WHERE user_id = ? AND server_id = ?
+            `, [Date.now(), userId, serverId]);
+        } catch (error) {
+            console.error('Error updating rob timestamp:', error);
+            throw error;
+        }
+    }
+
+    async updateBeg(userId, serverId) {
+        try {
+            await this.run(`
+                UPDATE economy 
+                SET last_beg = ? 
+                WHERE user_id = ? AND server_id = ?
+            `, [Date.now(), userId, serverId]);
+        } catch (error) {
+            console.error('Error updating beg timestamp:', error);
             throw error;
         }
     }

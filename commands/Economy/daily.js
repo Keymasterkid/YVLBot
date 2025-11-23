@@ -3,7 +3,7 @@ const { EmbedBuilder } = require('discord.js');
 module.exports = {
     name: 'daily',
     description: 'Claim your daily reward',
-    async execute(message, args, client, db) {
+    async execute(message, args, client, prefix, db) {
         const economy = await db.getEconomy(message.author.id, message.guild.id);
         const cooldown = 86400000; // 24 hours
         const now = Date.now();

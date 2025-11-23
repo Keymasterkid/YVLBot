@@ -4,7 +4,7 @@ module.exports = {
     name: 'baltop',
     description: 'View the richest users',
     aliases: ['rich', 'leaderboard'],
-    async execute(message, args, client, db) {
+    async execute(message, args, client, prefix, db) {
         const leaderboard = await db.getLeaderboard(message.guild.id);
 
         const embed = new EmbedBuilder()

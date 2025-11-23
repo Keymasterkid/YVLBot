@@ -21,7 +21,7 @@ module.exports = {
     // Get the queue for this guild
     const { queues } = require('./play');
     const queue = queues.get(message.guild.id);
-    
+
     if (!queue || !queue.playing) {
       return message.reply({
         embeds: [

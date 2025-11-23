@@ -3,7 +3,7 @@ const { EmbedBuilder } = require('discord.js');
 module.exports = {
     name: 'work',
     description: 'Work to earn money',
-    async execute(message, args, client, db) {
+    async execute(message, args, client, prefix, db) {
         const economy = await db.getEconomy(message.author.id, message.guild.id);
         const cooldown = 3600000; // 1 hour
         const now = Date.now();
