@@ -40,7 +40,7 @@ module.exports = {
           { name: '🌐 API Latency', value: `${apiLatency}ms`, inline: true },
           { name: '🖥️ System Info', value: systemInfo, inline: false }
         )
-        .setFooter({ text: 'Bot Info', iconURL: client.user.displayAvatarURL() })
+        .setFooter({ text: 'YVLBot By OG69 Dev™', iconURL: client.user.displayAvatarURL() })
         .setTimestamp();
 
       message.channel.send({ embeds: [botInfoEmbed] });

@@ -53,7 +53,7 @@ module.exports = {
           { name: 'Permissions', value: command.permissions ? command.permissions.join(', ') : 'None required' },
           { name: 'Category', value: command.category || 'General' }
         )
-        .setFooter({ text: 'Bot Help System' })
+        .setFooter({ text: 'YVLBot By OG69 Dev™ | Bot Help System' })
         .setTimestamp();
 
       return message.reply({ embeds: [embed] });
@@ -137,7 +137,7 @@ module.exports = {
       .setColor('#0099ff')
       .setTitle('Bot Commands')
       .setDescription('Click on a category button to view commands in that category.')
-      .setFooter({ text: 'Bot Help System' })
+      .setFooter({ text: 'YVLBot By OG69 Dev™ | Bot Help System' })
       .setTimestamp();
 
     // Send the initial message with buttons
@@ -168,7 +168,7 @@ module.exports = {
         .setDescription(commands.map(cmd =>
           `**${prefix}${cmd.name}** - ${cmd.description || 'No description available'}`
         ).join('\n'))
-        .setFooter({ text: 'Bot Help System' })
+        .setFooter({ text: 'YVLBot By OG69 Dev™ | Bot Help System' })
         .setTimestamp();
 
       await interaction.update({ embeds: [categoryEmbed] });

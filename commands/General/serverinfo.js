@@ -19,8 +19,8 @@ module.exports = {
       const totalMembers = humanCount + botCount;
 
       // Server creation and region formatting
-      const createdAt = server.createdAt.toLocaleDateString('en-US', { 
-        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+      const createdAt = server.createdAt.toLocaleDateString('en-US', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
       });
       const region = server.preferredLocale || 'Unknown';
 
@@ -42,7 +42,7 @@ module.exports = {
           { name: '📅 Created On', value: createdAt, inline: true },
           { name: '📊 Total Members', value: `${totalMembers}`, inline: true }
         )
-        .setFooter({ text: `Requested by ${message.author.tag}`, iconURL: message.author.displayAvatarURL() })
+        .setFooter({ text: `Requested by ${message.author.tag} | YVLBot By OG69 Dev™`, iconURL: message.author.displayAvatarURL() })
         .setTimestamp();
 
       // Send the embed to the channel

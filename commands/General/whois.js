@@ -43,7 +43,7 @@ module.exports = {
       if (is_owner) whoisEmbed.addFields({ name: '👑 Bot Owner', value: 'Yes', inline: true });
 
       whoisEmbed.setThumbnail(avatarURL);
-      whoisEmbed.setFooter({ text: 'Whois Command' });
+      whoisEmbed.setFooter({ text: 'YVLBot By OG69 Dev™ | Whois Command' });
 
       // Send the embed to the channel
       message.channel.send({ embeds: [whoisEmbed] });

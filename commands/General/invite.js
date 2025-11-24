@@ -12,7 +12,7 @@ module.exports = {
         .setTitle('Invite Me to Your Server!')
         .setDescription(`[Click here to invite the bot to your server](${inviteLink})`)
         .setThumbnail(client.user.displayAvatarURL())
-        .setFooter({ text: `Requested by ${message.author.tag}`, iconURL: message.author.displayAvatarURL() })
+        .setFooter({ text: `Requested by ${message.author.tag} | YVLBot By OG69 Dev™`, iconURL: message.author.displayAvatarURL() })
         .setTimestamp();
 
       message.channel.send({ embeds: [inviteEmbed] });
