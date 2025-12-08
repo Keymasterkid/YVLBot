@@ -61,6 +61,43 @@ class DatabaseManager {
                 }
             }
 
+            // Check if vc_activity table has all required columns
+            try {
+                await this.run('SELECT days FROM vc_activity LIMIT 1');
+            } catch (error) {
+                if (error.message.includes('no such column')) {
+                    await this.run('ALTER TABLE vc_activity ADD COLUMN days INTEGER DEFAULT 0');
+                    console.log('Added days column to vc_activity table');
+                }
+            }
+
+            try {
+                await this.run('SELECT hours FROM vc_activity LIMIT 1');
+            } catch (error) {
+                if (error.message.includes('no such column')) {
+                    await this.run('ALTER TABLE vc_activity ADD COLUMN hours INTEGER DEFAULT 0');
+                    console.log('Added hours column to vc_activity table');
+                }
+            }
+
+            try {
+                await this.run('SELECT minutes FROM vc_activity LIMIT 1');
+            } catch (error) {
+                if (error.message.includes('no such column')) {
+                    await this.run('ALTER TABLE vc_activity ADD COLUMN minutes INTEGER DEFAULT 0');
+                    console.log('Added minutes column to vc_activity table');
+                }
+            }
+
+            try {
+                await this.run('SELECT last_join_time FROM vc_activity LIMIT 1');
+            } catch (error) {
+                if (error.message.includes('no such column')) {
+                    await this.run('ALTER TABLE vc_activity ADD COLUMN last_join_time INTEGER');
+                    console.log('Added last_join_time column to vc_activity table');
+                }
+            }
+
             const tables = [
                 `CREATE TABLE IF NOT EXISTS users (
                     id TEXT PRIMARY KEY, 
