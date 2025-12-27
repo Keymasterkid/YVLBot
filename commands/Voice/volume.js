@@ -1,5 +1,4 @@
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const { AudioPlayerStatus } = require('@discordjs/voice');
 
 module.exports = {
   name: 'volume',
@@ -7,10 +6,9 @@ module.exports = {
   usage: '!volume [0-100]',
   aliases: ['vol'],
   permissions: [PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
-  async execute(message, args) {
-    // Check if user is in a voice channel
-    const voiceChannel = message.member.voice.channel;
-    if (!voiceChannel) {
+  async execute(message, args, client) {
+    const { channel } = message.member.voice;
+    if (!channel) {
       return message.reply({
         embeds: [
           new EmbedBuilder()
@@ -20,23 +18,8 @@ module.exports = {
       });
     }
 
-    // Check if bot is in the same voice channel
-    const botVoiceChannel = message.guild.members.me.voice.channel;
-    if (!botVoiceChannel || botVoiceChannel.id !== voiceChannel.id) {
-      return message.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor('Red')
-            .setDescription('❌ I need to be in the same voice channel as you!')
-        ]
-      });
-    }
-
-    // Get the queue for this guild
-    const { queues } = require('./play');
-    const queue = queues.get(message.guild.id);
-
-    if (!queue || !queue.playing) {
+    const player = client.moonlink.players.get(message.guild.id);
+    if (!player || !player.playing) {
       return message.reply({
         embeds: [
           new EmbedBuilder()
@@ -46,9 +29,19 @@ module.exports = {
       });
     }
 
+    if (player.voiceChannelId !== channel.id) {
+      return message.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor('Red')
+            .setDescription('❌ I need to be in the same voice channel as you!')
+        ]
+      });
+    }
+
     // If no volume specified, show current volume
     if (!args.length) {
-      const currentVolume = Math.round(queue.volume * 100);
+      const currentVolume = player.volume;
       const volumeBar = '🔊 ' + '█'.repeat(Math.floor(currentVolume / 10)) + '░'.repeat(10 - Math.floor(currentVolume / 10)) + ` ${currentVolume}%`;
 
       return message.reply({
@@ -75,32 +68,8 @@ module.exports = {
       });
     }
 
-    // Check if user is the one who requested the current song or has manage messages permission
-    const hasPermission = message.member.permissions.has(PermissionFlagsBits.ManageMessages) ||
-      (queue.currentSong && queue.currentSong.requestedBy.id === message.author.id);
-
-    if (!hasPermission) {
-      return message.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor('Red')
-            .setDescription('❌ You can only change volume for songs you requested, or you need Manage Messages permission!')
-        ]
-      });
-    }
-
     try {
-      // Set the volume (convert from 0-100 to 0-1)
-      const newVolume = volume / 100;
-      queue.volume = newVolume;
-
-      // Update the current audio resource volume if it exists
-      if (queue.player.state.status === AudioPlayerStatus.Playing) {
-        const resource = queue.player.state.resource;
-        if (resource && resource.volume) {
-          resource.volume.setVolume(newVolume);
-        }
-      }
+      player.setVolume(volume);
 
       const volumeBar = '🔊 ' + '█'.repeat(Math.floor(volume / 10)) + '░'.repeat(10 - Math.floor(volume / 10)) + ` ${volume}%`;
 

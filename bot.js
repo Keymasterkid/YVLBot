@@ -1,4 +1,5 @@
-const { Client, Events, GatewayIntentBits, Partials, Collection, EmbedBuilder, REST, Routes } = require('discord.js');
+const { Client, Events, GatewayIntentBits, Partials, Collection, EmbedBuilder, REST, Routes, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
+const { Manager } = require('moonlink.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -31,6 +32,19 @@ const prefix = config.prefix || '!';
 client.commands = new Collection();
 client.slashCommands = new Collection();
 client.cooldowns = new Collection();
+
+// Initialize Moonlink Manager
+client.moonlink = new Manager({
+  nodes: config.nodes,
+  options: {
+    clientName: 'YVLBot',
+    spotify: config.spotify,
+  },
+  sendPayload: (guildId, sdata) => {
+    const guild = client.guilds.cache.get(guildId);
+    if (guild) guild.shard.send(JSON.parse(sdata));
+  }
+});
 
 // Error handling function
 function handleError(error, context) {
@@ -96,6 +110,10 @@ function setupEventListeners() {
   // Ready event
   client.once(Events.ClientReady, async () => {
     console.log(`Logged in as ${client.user.tag}`);
+
+    // Initialize Moonlink
+    await client.moonlink.init(client.user.id);
+    console.log('✅ Moonlink initialized');
 
     // Health check and status logging
     console.log('=== Bot Health Check ===');
@@ -205,22 +223,75 @@ function setupEventListeners() {
 
   // Interaction event
   client.on(Events.InteractionCreate, async interaction => {
-    if (!interaction.isCommand()) return;
+    if (interaction.isCommand()) {
+      try {
+        const handled = await commandHandler.handleSlashCommand(interaction);
+        if (handled) return;
+      } catch (error) {
+        console.error('Error handling slash command:', error.stack || error);
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({
+            content: 'There was an error executing this command!',
+            flags: [MessageFlags.Ephemeral]
+          });
+        } else if (interaction.deferred) {
+          await interaction.editReply({
+            content: 'There was an error executing this command!'
+          });
+        }
+      }
+    } else if (interaction.isButton()) {
+      const player = client.moonlink.players.get(interaction.guild.id);
+      if (!player) return interaction.reply({ content: 'No music is playing.', flags: [MessageFlags.Ephemeral] });
 
-    try {
-      const handled = await commandHandler.handleSlashCommand(interaction);
-      if (handled) return;
-    } catch (error) {
-      console.error('Error handling slash command:', error.stack || error);
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({
-          content: 'There was an error executing this command!',
-          ephemeral: true
-        });
-      } else if (interaction.deferred) {
-        await interaction.editReply({
-          content: 'There was an error executing this command!'
-        });
+      const { channel } = interaction.member.voice;
+      if (!channel || channel.id !== player.voiceChannelId) {
+        return interaction.reply({ content: 'You must be in the same voice channel as the bot to use these buttons.', flags: [MessageFlags.Ephemeral] });
+      }
+
+      try {
+        switch (interaction.customId) {
+          case 'music_pause_resume':
+            const isPaused = player.paused;
+            if (isPaused) {
+              player.resume();
+            } else {
+              player.pause();
+            }
+
+            // Toggle the label and update the message
+            const newLabel = isPaused ? '⏸️' : '▶️';
+            const updatedRow = new ActionRowBuilder().addComponents(
+              new ButtonBuilder().setCustomId('music_pause_resume').setLabel(newLabel).setStyle(ButtonStyle.Secondary),
+              new ButtonBuilder().setCustomId('music_skip').setLabel('⏭️').setStyle(ButtonStyle.Secondary),
+              new ButtonBuilder().setCustomId('music_stop').setLabel('⏹️').setStyle(ButtonStyle.Danger),
+              new ButtonBuilder().setCustomId('music_vol_down').setLabel('🔉').setStyle(ButtonStyle.Secondary),
+              new ButtonBuilder().setCustomId('music_vol_up').setLabel('🔊').setStyle(ButtonStyle.Secondary)
+            );
+
+            await interaction.update({ components: [updatedRow] });
+            break;
+          case 'music_skip':
+            player.skip();
+            await interaction.reply({ content: '⏭️ Skipped track', flags: [MessageFlags.Ephemeral] });
+            break;
+          case 'music_stop':
+            player.destroy();
+            await interaction.reply({ content: '⏹️ Stopped playback', flags: [MessageFlags.Ephemeral] });
+            break;
+          case 'music_vol_down':
+            let volDown = Math.max(0, (player.volume || 100) - 10);
+            player.setVolume(volDown);
+            await interaction.reply({ content: `🔉 Volume decreased to ${volDown}%`, flags: [MessageFlags.Ephemeral] });
+            break;
+          case 'music_vol_up':
+            let volUp = Math.min(100, (player.volume || 100) + 10);
+            player.setVolume(volUp);
+            await interaction.reply({ content: `🔊 Volume increased to ${volUp}%`, flags: [MessageFlags.Ephemeral] });
+            break;
+        }
+      } catch (error) {
+        console.error('Button interaction error:', error);
       }
     }
   });
@@ -233,6 +304,100 @@ function setupEventListeners() {
   // Warn event
   client.on(Events.Warn, info => {
     console.warn('Discord client warning:', info);
+  });
+
+  // Moonlink raw packet update
+  client.on(Events.Raw, (packet) => {
+    client.moonlink.packetUpdate(packet);
+  });
+
+  // Moonlink event listeners
+  client.moonlink.on('nodeConnected', (node) => {
+    console.log(`[Moonlink] Node "${node.identifier}" connected.`);
+  });
+
+  client.moonlink.on('nodeError', (node, error) => {
+    console.error(`[Moonlink] Node "${node.identifier}" encountered an error:`, error);
+  });
+
+  client.moonlink.on('debug', (message) => {
+    console.log(`[Moonlink Debug] ${message}`);
+  });
+
+  client.moonlink.on('trackStart', async (player, track) => {
+    const channel = client.channels.cache.get(player.textChannelId);
+    if (channel) {
+      // Delete old message if it exists
+      const oldMessageId = player.get('nowPlayingMessageId');
+      if (oldMessageId) {
+        channel.messages.fetch(oldMessageId).then(m => m.delete().catch(() => { })).catch(() => { });
+        player.set('nowPlayingMessageId', null);
+      }
+
+      const requesterId = (track.requestedBy && typeof track.requestedBy === 'object' ? track.requestedBy.id || track.requestedBy : track.requestedBy) || 'Unknown';
+      const embed = new EmbedBuilder()
+        .setTitle('🎵 Now Playing')
+        .setDescription(`[${track.title}](${track.url})`)
+        .addFields(
+          { name: 'Duration', value: track.isStream ? '🔴 Live Stream' : new Date(track.duration).toISOString().substr(11, 8), inline: true },
+          { name: 'Requested By', value: `<@${requesterId}>`, inline: true }
+        )
+        .setColor(0x3498DB)
+        .setThumbnail(track.thumbnail || null)
+        .setTimestamp();
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('music_pause_resume').setLabel('⏯️').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('music_skip').setLabel('⏭️').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('music_stop').setLabel('⏹️').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId('music_vol_down').setLabel('🔉').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('music_vol_up').setLabel('🔊').setStyle(ButtonStyle.Secondary)
+      );
+
+      const msg = await channel.send({ embeds: [embed], components: [row] });
+      player.set('nowPlayingMessageId', msg.id);
+      player.set('lastTextChannelId', player.textChannelId); // Backup channel ID
+    }
+  });
+
+  client.moonlink.on('queueEnd', async (player) => {
+    const channel = client.channels.cache.get(player.textChannelId || player.get('lastTextChannelId'));
+    if (channel) {
+      // Cleanup buttons before destroying
+      const oldMessageId = player.get('nowPlayingMessageId');
+      if (oldMessageId) {
+        channel.messages.fetch(oldMessageId).then(m => m.delete().catch(() => { })).catch(() => { });
+        player.set('nowPlayingMessageId', null);
+      }
+      channel.send('🎵 Queue is empty. Leaving voice channel.').then(m => setTimeout(() => m.delete().catch(() => { }), 5000));
+    }
+    player.destroy();
+  });
+
+  client.moonlink.on('autoLeaved', async (player) => {
+    console.log(`[Moonlink] Auto-leaved guild ${player.guildId}`);
+    const channelId = player.textChannelId || player.get('lastTextChannelId');
+    const channel = client.channels.cache.get(channelId);
+    if (channel) {
+      const oldMessageId = player.get('nowPlayingMessageId');
+      if (oldMessageId) {
+        channel.messages.fetch(oldMessageId).then(m => m.delete().catch(() => { })).catch(() => { });
+        player.set('nowPlayingMessageId', null);
+      }
+    }
+  });
+
+  client.moonlink.on('playerDestroy', async (player) => {
+    console.log(`[Moonlink] Player destroyed for guild ${player.guildId}`);
+    const channelId = player.textChannelId || player.get('lastTextChannelId');
+    const channel = client.channels.cache.get(channelId);
+    if (channel) {
+      const oldMessageId = player.get('nowPlayingMessageId');
+      if (oldMessageId) {
+        channel.messages.fetch(oldMessageId).then(m => m.delete().catch(() => { })).catch(() => { });
+        player.set('nowPlayingMessageId', null);
+      }
+    }
   });
 }
 
@@ -307,4 +472,14 @@ process.on('SIGINT', async () => {
 });
 
 // Start the bot
+// Handle global errors to prevent silent crashes
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Unhandled Rejection] at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[Uncaught Exception] thrown:', err);
+  // Optional: process.exit(1);
+});
+
 startBot();

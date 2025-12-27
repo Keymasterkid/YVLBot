@@ -5,10 +5,9 @@ module.exports = {
   description: 'Skip the current song',
   usage: '!skip',
   permissions: [PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
-  async execute(message, args) {
-    // Check if user is in a voice channel
-    const voiceChannel = message.member.voice.channel;
-    if (!voiceChannel) {
+  async execute(message, args, client) {
+    const { channel } = message.member.voice;
+    if (!channel) {
       return message.reply({
         embeds: [
           new EmbedBuilder()
@@ -18,23 +17,8 @@ module.exports = {
       });
     }
 
-    // Check if bot is in the same voice channel
-    const botVoiceChannel = message.guild.members.me.voice.channel;
-    if (!botVoiceChannel || botVoiceChannel.id !== voiceChannel.id) {
-      return message.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor('Red')
-            .setDescription('❌ I need to be in the same voice channel as you!')
-        ]
-      });
-    }
-
-    // Get the queue for this guild
-    const { queues } = require('./play');
-    const queue = queues.get(message.guild.id);
-
-    if (!queue || !queue.playing) {
+    const player = client.moonlink.players.get(message.guild.id);
+    if (!player || !player.playing) {
       return message.reply({
         embeds: [
           new EmbedBuilder()
@@ -44,23 +28,18 @@ module.exports = {
       });
     }
 
-    // Check if user is the one who requested the current song or has manage messages permission
-    const hasPermission = message.member.permissions.has(PermissionFlagsBits.ManageMessages) ||
-      (queue.currentSong && queue.currentSong.requestedBy.id === message.author.id);
-
-    if (!hasPermission) {
+    if (player.voiceChannelId !== channel.id) {
       return message.reply({
         embeds: [
           new EmbedBuilder()
             .setColor('Red')
-            .setDescription('❌ You can only skip songs you requested, or you need Manage Messages permission!')
+            .setDescription('❌ I need to be in the same voice channel as you!')
         ]
       });
     }
 
     try {
-      // Stop the current song to trigger playNext
-      queue.player.stop();
+      player.skip();
 
       message.reply({
         embeds: [

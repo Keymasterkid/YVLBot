@@ -5,10 +5,9 @@ module.exports = {
   description: 'Stop playback and clear the queue',
   usage: '!stop',
   permissions: [PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
-  async execute(message, args) {
-    // Check if user is in a voice channel
-    const voiceChannel = message.member.voice.channel;
-    if (!voiceChannel) {
+  async execute(message, args, client) {
+    const { channel } = message.member.voice;
+    if (!channel) {
       return message.reply({
         embeds: [
           new EmbedBuilder()
@@ -18,23 +17,8 @@ module.exports = {
       });
     }
 
-    // Check if bot is in the same voice channel
-    const botVoiceChannel = message.guild.members.me.voice.channel;
-    if (!botVoiceChannel || botVoiceChannel.id !== voiceChannel.id) {
-      return message.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor('Red')
-            .setDescription('❌ I need to be in the same voice channel as you!')
-        ]
-      });
-    }
-
-    // Get the queue for this guild
-    const { queues } = require('./play');
-    const queue = queues.get(message.guild.id);
-
-    if (!queue || !queue.playing) {
+    const player = client.moonlink.players.get(message.guild.id);
+    if (!player) {
       return message.reply({
         embeds: [
           new EmbedBuilder()
@@ -44,51 +28,18 @@ module.exports = {
       });
     }
 
-    // Check if user is the one who requested the current song or has manage messages permission
-    const hasPermission = message.member.permissions.has(PermissionFlagsBits.ManageMessages) ||
-      (queue.currentSong && queue.currentSong.requestedBy.id === message.author.id);
-
-    if (!hasPermission) {
+    if (player.voiceChannelId !== channel.id) {
       return message.reply({
         embeds: [
           new EmbedBuilder()
             .setColor('Red')
-            .setDescription('❌ You can only stop songs you requested, or you need Manage Messages permission!')
+            .setDescription('❌ I need to be in the same voice channel as you!')
         ]
       });
     }
 
     try {
-      // Clear the queue
-      queue.songs = [];
-
-      // Stop the player
-      queue.player.stop();
-
-      // Destroy the connection
-      if (queue.connection) {
-        queue.connection.destroy();
-      }
-
-      // Stop the collector
-      if (queue.collector) {
-        queue.collector.stop();
-      }
-
-      // Clear the control message
-      if (queue.controlMessage) {
-        try {
-          await queue.controlMessage.edit({ components: [] });
-        } catch (error) {
-          console.error('Error clearing control message:', error);
-        }
-      }
-
-      // Set playing to false
-      queue.playing = false;
-
-      // Remove the queue from the global map
-      queues.delete(message.guild.id);
+      player.destroy();
 
       message.reply({
         embeds: [

@@ -10,15 +10,14 @@
   "author": "OriginalGaming14",
   "license": "ISC",
   "dependencies": {
-    "@discordjs/voice": "^0.18.0",
+    "@discordjs/voice": "^0.19.0",
     "axios": "^1.8.4",
     "discord-player": "^6.6.2",
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.1",
-    "play-dl": "^1.9.7",
+    "moonlink.js": "^4.60.24",
     "sqlite3": "^5.1.7",
-    "winston": "^3.11.0",
-    "@distube/ytdl-core": "^4.16.12"
+    "winston": "^3.11.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.3"

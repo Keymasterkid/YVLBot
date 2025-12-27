@@ -16,5 +16,18 @@ module.exports = {
         min: 15,
         max: 25,
         levelMultiplier: 100
+    },
+    nodes: [
+        {
+            host: "localhost",
+            port: 2333,
+            password: "youshallnotpass",
+            identifier: "Main Node",
+            secure: true
+        }
+    ],
+    spotify: {
+        clientId: "YOUR_SPOTIFY_CLIENT_ID",
+        clientSecret: "YOUR_SPOTIFY_CLIENT_SECRET"
     }
 };

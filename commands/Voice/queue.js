@@ -5,24 +5,10 @@ module.exports = {
   description: 'Show the current music queue',
   usage: '!queue',
   permissions: [PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
-  async execute(message, args) {
-    // Check if user is in a voice channel
-    const voiceChannel = message.member.voice.channel;
-    if (!voiceChannel) {
-      return message.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor('Red')
-            .setDescription('❌ You need to be in a voice channel!')
-        ]
-      });
-    }
+  async execute(message, args, client) {
+    const player = client.moonlink.players.get(message.guild.id);
 
-    // Get the queue for this guild
-    const { queues } = require('./play');
-    const queue = queues.get(message.guild.id);
-
-    if (!queue || !queue.playing) {
+    if (!player || !player.playing) {
       return message.reply({
         embeds: [
           new EmbedBuilder()
@@ -38,30 +24,32 @@ module.exports = {
       .setTimestamp();
 
     // Add current song
-    if (queue.currentSong) {
+    if (player.current) {
+      const curReq = player.current.requestedBy && typeof player.current.requestedBy === 'object' ? player.current.requestedBy.id || player.current.requestedBy : player.current.requestedBy;
       embed.addFields({
         name: '🎵 Now Playing',
-        value: `[${queue.currentSong.title}](${queue.currentSong.url})\nDuration: ${queue.currentSong.duration} | Requested by: ${queue.currentSong.requestedBy.username}`,
+        value: `[${player.current.title}](${player.current.url})\nDuration: ${player.current.isStream ? '🔴 Live Stream' : new Date(player.current.duration).toISOString().substr(11, 8)} | Requested by: <@${curReq || 'Unknown'}>`,
         inline: false
       });
     }
 
     // Add queue information
-    if (queue.songs.length > 0) {
-      const queueList = queue.songs.slice(0, 10).map((song, index) => {
-        return `${index + 1}. [${song.title}](${song.url}) - ${song.duration} (${song.requestedBy.username})`;
+    if (player.queue.size > 0) {
+      const queueList = player.queue.slice(0, 10).map((track, index) => {
+        const reqBy = track.requestedBy && typeof track.requestedBy === 'object' ? track.requestedBy.id || track.requestedBy : track.requestedBy;
+        return `${index + 1}. [${track.title}](${track.url}) - ${track.isStream ? '🔴 Live Stream' : new Date(track.duration).toISOString().substr(11, 8)} (<@${reqBy || 'Unknown'}>)`;
       }).join('\n');
 
       embed.addFields({
-        name: `📋 Up Next (${queue.songs.length} songs)`,
+        name: `📋 Up Next (${player.queue.size} songs)`,
         value: queueList,
         inline: false
       });
 
-      if (queue.songs.length > 10) {
+      if (player.queue.size > 10) {
         embed.addFields({
           name: '📝 And more...',
-          value: `+${queue.songs.length - 10} more songs in queue`,
+          value: `+${player.queue.size - 10} more songs in queue`,
           inline: false
         });
       }
@@ -73,10 +61,9 @@ module.exports = {
       });
     }
 
-    // Add queue settings
+    // Add player settings
     embed.addFields(
-      { name: '🔁 Loop', value: queue.loop ? 'Enabled' : 'Disabled', inline: true },
-      { name: '🔊 Volume', value: `${Math.round(queue.volume * 100)}%`, inline: true }
+      { name: '🔊 Volume', value: `${player.volume}%`, inline: true }
     );
 
     message.reply({ embeds: [embed] });
