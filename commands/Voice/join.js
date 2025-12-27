@@ -50,7 +50,7 @@ module.exports = {
                 autoLeave: true
             });
 
-            player.connect();
+            player.connect({ setDeaf: true });
 
             message.reply({
                 embeds: [

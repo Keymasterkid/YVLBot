@@ -40,7 +40,7 @@ module.exports = {
                 });
             }
 
-            if (!player.connected) await player.connect();
+            if (!player.connected) await player.connect({ setDeaf: true });
 
             await player.speak({
                 text: text,
