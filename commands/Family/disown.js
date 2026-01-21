@@ -4,7 +4,7 @@ module.exports = {
     name: 'disown',
     description: 'Disown a child',
     usage: '<user>',
-    async execute(message, args, client, db) {
+    async execute(message, args, client, prefix, db) {
         const target = message.mentions.users.first();
         if (!target) return message.reply('Please mention a child to disown.');
 

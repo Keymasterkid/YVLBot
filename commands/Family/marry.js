@@ -4,7 +4,7 @@ module.exports = {
     name: 'marry',
     description: 'Propose to another user',
     usage: '<user>',
-    async execute(message, args, client, db) {
+    async execute(message, args, client, prefix, db) {
         const target = message.mentions.users.first();
         if (!target) return message.reply('Please mention a user to marry.');
         if (target.id === message.author.id) return message.reply('You cannot marry yourself.');

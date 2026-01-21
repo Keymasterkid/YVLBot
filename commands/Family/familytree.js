@@ -4,7 +4,7 @@ module.exports = {
     name: 'familytree',
     description: 'View your family tree',
     aliases: ['tree', 'family'],
-    async execute(message, args, client, db) {
+    async execute(message, args, client, prefix, db) {
         const target = message.mentions.users.first() || message.author;
         const family = await db.getFamily(target.id, message.guild.id);
 

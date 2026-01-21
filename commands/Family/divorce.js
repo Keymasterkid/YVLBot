@@ -3,7 +3,7 @@ const { EmbedBuilder } = require('discord.js');
 module.exports = {
     name: 'divorce',
     description: 'Divorce your partner',
-    async execute(message, args, client, db) {
+    async execute(message, args, client, prefix, db) {
         const family = await db.getFamily(message.author.id, message.guild.id);
         if (!family.partner_id) return message.reply('You are not married!');
 

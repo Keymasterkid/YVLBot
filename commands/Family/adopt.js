@@ -4,7 +4,7 @@ module.exports = {
     name: 'adopt',
     description: 'Adopt another user',
     usage: '<user>',
-    async execute(message, args, client, db) {
+    async execute(message, args, client, prefix, db) {
         const target = message.mentions.users.first();
         if (!target) return message.reply('Please mention a user to adopt.');
         if (target.id === message.author.id) return message.reply('You cannot adopt yourself.');
