@@ -22,50 +22,32 @@ module.exports = {
     const userMention = message.mentions.users.first();
 
     if (!userMention) {
-      return message.reply('Please mention a valid user.');
+      return message.reply('Please mention a valid user to manage their blacklist status.');
     }
 
     const userId = userMention.id;
 
     try {
-      const targetData = await getUserData(db, userId);
-
-      if (!targetData) {
-        return message.reply('That user is not registered in the database.');
-      }
-
-      // Protection checks
-      if (targetData.is_owner) {
-        return message.reply('You cannot blacklist the bot owner.');
-      }
-
-      if (targetData.is_admin) {
-        return message.reply('You cannot blacklist another admin.');
-      }
-
       if (subcommand === 'add') {
         await blacklistUser(db, userId, 1);
         message.reply(`${userMention.tag} has been added to the blacklist.`);
-      } else {
+      } else if (subcommand === 'remove') {
         await blacklistUser(db, userId, 0);
         message.reply(`${userMention.tag} has been removed from the blacklist.`);
       }
     } catch (error) {
       console.error('Error managing blacklist:', error);
-      message.reply('There was an error managing the blacklist.');
+      message.reply('There was an error managing the blacklist. Please try again later.');
     }
   },
 };
 
-// Fetch user data
+// Fetch user data to check if the author is an admin
 async function getUserData(db, userId) {
   return await db.get('SELECT * FROM users WHERE id = ?', [userId]);
 }
 
-// Set blacklist status
+// Add or remove a user from the blacklist by setting is_blacklisted
 async function blacklistUser(db, userId, status) {
-  await db.run(
-    'UPDATE users SET is_blacklisted = ? WHERE id = ?',
-    [status, userId]
-  );
+  await db.run('UPDATE users SET is_blacklisted = ? WHERE id = ?', [status, userId]);
 }
