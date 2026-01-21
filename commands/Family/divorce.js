@@ -4,8 +4,14 @@ module.exports = {
     name: 'divorce',
     description: 'Divorce your partner',
     async execute(message, args, client, prefix, db) {
-        const family = await db.getFamily(message.author.id, message.guild.id);
-        if (!family.partner_id) return message.reply('You are not married!');
+        try {
+            if (!db || typeof db.getFamily !== 'function' || typeof db.updateFamily !== 'function') {
+                return message.reply('Database error: Family methods not available.');
+            }
+
+            const family = await db.getFamily(message.author.id, message.guild.id);
+            if (!family) return message.reply('Error retrieving your family data.');
+            if (!family.partner_id) return message.reply('You are not married!');
 
         const partnerId = family.partner_id;
         const partnerFamily = await db.getFamily(partnerId, message.guild.id);
@@ -48,6 +54,10 @@ module.exports = {
             children: partnerNewChildren
         });
 
-        message.channel.send(`💔 ${message.author} has divorced < @${partnerId}>.\nChildren have been returned to their primary parents.`);
+        message.channel.send(`💔 ${message.author} has divorced <@${partnerId}>.\nChildren have been returned to their primary parents.`);
+        } catch (error) {
+            console.error('Error in divorce command:', error);
+            message.reply('There was an error executing this command.');
+        }
     }
 };

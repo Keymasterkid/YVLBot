@@ -5,17 +5,29 @@ module.exports = {
     description: 'Adopt another user',
     usage: '<user>',
     async execute(message, args, client, prefix, db) {
-        const target = message.mentions.users.first();
-        if (!target) return message.reply('Please mention a user to adopt.');
-        if (target.id === message.author.id) return message.reply('You cannot adopt yourself.');
-        if (target.bot) return message.reply('You cannot adopt a bot.');
+        try {
+            if (!db || typeof db.getFamily !== 'function' || typeof db.updateFamily !== 'function') {
+                return message.reply('Database error: Family methods not available.');
+            }
 
-        const authorFamily = await db.getFamily(message.author.id, message.guild.id);
-        const targetFamily = await db.getFamily(target.id, message.guild.id);
+            const target = message.mentions.users.first();
+            if (!target) return message.reply('Please mention a user to adopt.');
+            if (target.id === message.author.id) return message.reply('You cannot adopt yourself.');
+            if (target.bot) return message.reply('You cannot adopt a bot.');
 
-        // Check if already related (basic check)
-        if (authorFamily.children.includes(target.id)) return message.reply('You have already adopted this user.');
-        if (targetFamily.parents.length > 0) return message.reply('This user is already adopted by someone else.');
+            const authorFamily = await db.getFamily(message.author.id, message.guild.id);
+            if (!authorFamily || !authorFamily.children || !Array.isArray(authorFamily.children)) {
+                return message.reply('Error retrieving your family data.');
+            }
+
+            const targetFamily = await db.getFamily(target.id, message.guild.id);
+            if (!targetFamily || !targetFamily.parents || !Array.isArray(targetFamily.parents)) {
+                return message.reply('Error retrieving target family data.');
+            }
+
+            // Check if already related (basic check)
+            if (authorFamily.children.includes(target.id)) return message.reply('You have already adopted this user.');
+            if (targetFamily.parents.length > 0) return message.reply('This user is already adopted by someone else.');
 
         const embed = new EmbedBuilder()
             .setTitle('Adoption Request')
@@ -47,25 +59,32 @@ module.exports = {
             }
 
             if (i.customId === 'accept_adoption') {
-                const newChildren = [...authorFamily.children, target.id];
-                let newParents = [message.author.id];
-                let successMsg = `🎉 ${message.author} has adopted ${target}! 🎉`;
+                try {
+                    const newChildren = [...authorFamily.children, target.id];
+                    let newParents = [message.author.id];
+                    let successMsg = `🎉 ${message.author} has adopted ${target}! 🎉`;
 
-                // If adopter is married, add partner as parent too
-                if (authorFamily.partner_id) {
-                    const partnerFamily = await db.getFamily(authorFamily.partner_id, message.guild.id);
-                    const partnerChildren = [...partnerFamily.children, target.id];
+                    // If adopter is married, add partner as parent too
+                    if (authorFamily.partner_id) {
+                        const partnerFamily = await db.getFamily(authorFamily.partner_id, message.guild.id);
+                        if (partnerFamily && partnerFamily.children && Array.isArray(partnerFamily.children)) {
+                            const partnerChildren = [...partnerFamily.children, target.id];
 
-                    newParents.push(authorFamily.partner_id);
-                    await db.updateFamily(authorFamily.partner_id, message.guild.id, { children: partnerChildren });
-                    successMsg = `🎉 ${message.author} and their partner <@${authorFamily.partner_id}> have adopted ${target}! 🎉`;
+                            newParents.push(authorFamily.partner_id);
+                            await db.updateFamily(authorFamily.partner_id, message.guild.id, { children: partnerChildren });
+                            successMsg = `🎉 ${message.author} and their partner <@${authorFamily.partner_id}> have adopted ${target}! 🎉`;
+                        }
+                    }
+
+                    await db.updateFamily(message.author.id, message.guild.id, { children: newChildren });
+                    await db.updateFamily(target.id, message.guild.id, { parents: newParents });
+
+                    await i.update({ content: 'Adoption accepted!', components: [] });
+                    message.channel.send(successMsg);
+                } catch (error) {
+                    console.error('Error accepting adoption:', error);
+                    await i.update({ content: 'There was an error processing the adoption.', components: [] });
                 }
-
-                await db.updateFamily(message.author.id, message.guild.id, { children: newChildren });
-                await db.updateFamily(target.id, message.guild.id, { parents: newParents });
-
-                await i.update({ content: 'Adoption accepted!', components: [] });
-                message.channel.send(`🎉 ${message.author} has adopted ${target}! 🎉`);
             } else {
                 await i.update({ content: 'Adoption rejected.', components: [] });
                 message.channel.send(`${target} rejected the adoption.`);
@@ -77,5 +96,9 @@ module.exports = {
                 reply.edit({ content: 'Adoption request timed out.', components: [] });
             }
         });
+        } catch (error) {
+            console.error('Error in adopt command:', error);
+            message.reply('There was an error executing this command.');
+        }
     }
 };

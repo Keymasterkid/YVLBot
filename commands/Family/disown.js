@@ -5,20 +5,38 @@ module.exports = {
     description: 'Disown a child',
     usage: '<user>',
     async execute(message, args, client, prefix, db) {
-        const target = message.mentions.users.first();
-        if (!target) return message.reply('Please mention a child to disown.');
+        try {
+            if (!db || typeof db.getFamily !== 'function' || typeof db.updateFamily !== 'function') {
+                return message.reply('Database error: Family methods not available.');
+            }
 
-        const authorFamily = await db.getFamily(message.author.id, message.guild.id);
-        if (!authorFamily.children.includes(target.id)) return message.reply('This user is not your child.');
+            const target = message.mentions.users.first();
+            if (!target) return message.reply('Please mention a child to disown.');
 
-        const targetFamily = await db.getFamily(target.id, message.guild.id);
+            const authorFamily = await db.getFamily(message.author.id, message.guild.id);
+            if (!authorFamily || !authorFamily.children || !Array.isArray(authorFamily.children)) {
+                return message.reply('Error retrieving your family data.');
+            }
 
-        const newChildren = authorFamily.children.filter(id => id !== target.id);
-        const newParents = targetFamily.parents.filter(id => id !== message.author.id);
+            if (!authorFamily.children.includes(target.id)) {
+                return message.reply('This user is not your child.');
+            }
 
-        await db.updateFamily(message.author.id, message.guild.id, { children: newChildren });
-        await db.updateFamily(target.id, message.guild.id, { parents: newParents });
+            const targetFamily = await db.getFamily(target.id, message.guild.id);
+            if (!targetFamily || !targetFamily.parents || !Array.isArray(targetFamily.parents)) {
+                return message.reply('Error retrieving target family data.');
+            }
 
-        message.channel.send(`💔 ${message.author} has disowned ${target}.`);
+            const newChildren = authorFamily.children.filter(id => id !== target.id);
+            const newParents = targetFamily.parents.filter(id => id !== message.author.id);
+
+            await db.updateFamily(message.author.id, message.guild.id, { children: newChildren });
+            await db.updateFamily(target.id, message.guild.id, { parents: newParents });
+
+            message.channel.send(`💔 ${message.author} has disowned ${target}.`);
+        } catch (error) {
+            console.error('Error in disown command:', error);
+            message.reply('There was an error executing this command.');
+        }
     }
 };
