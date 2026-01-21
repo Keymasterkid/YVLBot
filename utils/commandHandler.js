@@ -13,7 +13,6 @@ class CommandHandler {
     }
 
     loadCommands() {
-        // Load prefix commands
         const commandFolders = fs.readdirSync(path.join(__dirname, '../commands'));
         for (const folder of commandFolders) {
             const commandFiles = fs.readdirSync(path.join(__dirname, '../commands', folder))
@@ -26,7 +25,6 @@ class CommandHandler {
             }
         }
 
-        // Load slash commands
         const slashCommandFolders = fs.readdirSync(path.join(__dirname, '../slashcommands'));
         for (const folder of slashCommandFolders) {
             const slashCommandFiles = fs.readdirSync(path.join(__dirname, '../slashcommands', folder))
@@ -52,12 +50,29 @@ class CommandHandler {
 
         console.log(`[CommandHandler] Handling command: ${commandName}`);
 
-        // Global blacklist check
+        // Global blacklist check with owner bypass
         try {
-            const userRow = await db.get('SELECT is_blacklisted FROM users WHERE id = ?', [message.author.id]);
-            if (userRow && userRow.is_blacklisted === 1) {
-                await message.reply('You are blacklisted from using this bot.');
-                return true;
+            const userRow = await db.get(
+                'SELECT is_blacklisted, is_owner FROM users WHERE id = ?',
+                [message.author.id]
+            );
+
+            if (userRow) {
+                // Owner auto-unblacklist
+                if (userRow.is_owner === 1 && userRow.is_blacklisted === 1) {
+                    await db.run(
+                        'UPDATE users SET is_blacklisted = 0 WHERE id = ?',
+                        [message.author.id]
+                    );
+
+                    await message.reply('Your blacklist has been removed automatically.');
+                }
+
+                // Normal blacklist block
+                if (userRow.is_blacklisted === 1 && userRow.is_owner !== 1) {
+                    await message.reply('You are blacklisted from using this bot.');
+                    return true;
+                }
             }
         } catch (blErr) {
             console.warn('[CommandHandler] Blacklist check failed (continuing):', blErr);
@@ -78,7 +93,7 @@ class CommandHandler {
             console.warn('[CommandHandler] Permission check failed:', permErr);
         }
 
-        // Check cooldown
+        // Cooldown system
         if (!this.cooldowns.has(command.name)) {
             this.cooldowns.set(command.name, new Collection());
         }
@@ -124,14 +139,39 @@ class CommandHandler {
         console.log(`[CommandHandler] Handling slash command: ${interaction.commandName}`);
 
         try {
-            // Global blacklist check
+            // Global blacklist check with owner bypass
             try {
-                const userRow = await db.get('SELECT is_blacklisted FROM users WHERE id = ?', [interaction.user.id]);
-                if (userRow && userRow.is_blacklisted === 1) {
-                    if (!interaction.replied && !interaction.deferred) {
-                        await interaction.reply({ content: 'You are blacklisted from using this bot.', ephemeral: true });
+                const userRow = await db.get(
+                    'SELECT is_blacklisted, is_owner FROM users WHERE id = ?',
+                    [interaction.user.id]
+                );
+
+                if (userRow) {
+                    // Owner auto-unblacklist
+                    if (userRow.is_owner === 1 && userRow.is_blacklisted === 1) {
+                        await db.run(
+                            'UPDATE users SET is_blacklisted = 0 WHERE id = ?',
+                            [interaction.user.id]
+                        );
+
+                        if (!interaction.replied && !interaction.deferred) {
+                            await interaction.reply({
+                                content: 'Your blacklist has been removed automatically.',
+                                ephemeral: true
+                            });
+                        }
                     }
-                    return true;
+
+                    // Normal blacklist block
+                    if (userRow.is_blacklisted === 1 && userRow.is_owner !== 1) {
+                        if (!interaction.replied && !interaction.deferred) {
+                            await interaction.reply({
+                                content: 'You are blacklisted from using this bot.',
+                                ephemeral: true
+                            });
+                        }
+                        return true;
+                    }
                 }
             } catch (blErr) {
                 console.warn('[CommandHandler] Slash blacklist check failed (continuing):', blErr);
