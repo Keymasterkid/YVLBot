@@ -271,12 +271,13 @@ async function handleXpGain(message) {
   try {
     const userId = message.author.id;
     const serverId = message.guild.id;
+    const cooldownKey = `${userId}:${serverId}`;
 
     // Check cooldown
     if (client.cooldowns.has('xp')) {
       const timestamps = client.cooldowns.get('xp');
-      if (timestamps.has(userId)) {
-        const lastMessageTime = timestamps.get(userId);
+      if (timestamps.has(cooldownKey)) {
+        const lastMessageTime = timestamps.get(cooldownKey);
         const cooldown = config.cooldowns.xp;
 
         if (Date.now() - lastMessageTime < cooldown) {
@@ -289,7 +290,7 @@ async function handleXpGain(message) {
     if (!client.cooldowns.has('xp')) {
       client.cooldowns.set('xp', new Collection());
     }
-    client.cooldowns.get('xp').set(userId, Date.now());
+    client.cooldowns.get('xp').set(cooldownKey, Date.now());
 
     // Calculate XP gain
     const xpGain = Math.floor(Math.random() * (config.xp.max - config.xp.min + 1)) + config.xp.min;
